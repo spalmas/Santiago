@@ -1,0 +1,45 @@
+---
+title: "Analysis of Santiago Urban Tree Growth"
+author: "spp"
+date: "03/02/2015"
+output: html_document
+---
+
+Script to fit Biomass model from Urban trees in Santiago. Full code can be view at [github.com/spalmas/Santiago](https://github.com/spalmas/Santiago)
+
+####Load Packages
+```{r}
+require(xlsx)
+```
+
+####Get Data
+```{r}
+#Set working directory
+setwd("~/Google Drive/Urban")
+
+arboles <- read.xlsx(file="arboles_2002-2014.xlsx", sheetName = 'Parcelas con arboles')
+spp.both <- read.xlsx(file="arboles_2002-2014.xlsx", sheetName = 'Spp in both yrs')
+FieldLandUses <- read.xlsx(file="FieldLandUses.xlsx", sheetName = 'FieldLandUses')
+GroundCovers <- read.xlsx(file="PlotGrndCvr.xlsx", sheetName = 'GroundCovers')
+GroundCoverType <- read.xlsx(file="PlotGrndCvr.xlsx", sheetName = 'GroundCoverType')
+Plots <- read.xlsx(file="PlotLandUSe.xlsx", sheetName = 'Plots')
+LandUseID <- read.xlsx(file="PlotLandUSe.xlsx", sheetName = 'LandUseID')
+Shrubs <- read.xlsx(file="Shrubs.xlsx", sheetName = 'Shrubs')
+Trees <- read.xlsx(file="TreeBiometrics.xlsx", sheetName = 'Trees')
+Subplots <- read.xlsx(file="TreeShrbCvr.xlsx", sheetName = 'Subplots')
+```
+
+####Structure 
+```{r}
+str(arboles)
+str(spp.both)
+str(FieldLandUses)
+str(GroundCovers)
+str(GroundCoverType)
+str(Plots)
+str(LandUseID)
+str(Shrubs)
+str(Trees)
+str(Subplots)
+```
+.
