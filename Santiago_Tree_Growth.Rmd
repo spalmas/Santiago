@@ -1,32 +1,33 @@
 ---
 title: "Analysis of Santiago Urban Tree Growth"
 author: "spp"
-date: "03/02/2015"
-output: html_document
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 
-Script to fit Biomass model from Urban trees in Santiago. Full code can be view at [github.com/spalmas/Santiago](https://github.com/spalmas/Santiago)
+Script to fit Biomass model from Urban trees in Santiago.
 
 ####Load Packages
-```{r}
-require(xlsx)
+```{r Loading Packages, message=FALSE}
+require(gdata)
+require(dplyr)
 ```
 
 ####Get Data
-```{r}
+```{r Reading Data}
 #Set working directory
 setwd("~/Google Drive/Urban")
-
-arboles <- read.xlsx(file="arboles_2002-2014.xlsx", sheetName = 'Parcelas con arboles')
-spp.both <- read.xlsx(file="arboles_2002-2014.xlsx", sheetName = 'Spp in both yrs')
-FieldLandUses <- read.xlsx(file="FieldLandUses.xlsx", sheetName = 'FieldLandUses')
-GroundCovers <- read.xlsx(file="PlotGrndCvr.xlsx", sheetName = 'GroundCovers')
-GroundCoverType <- read.xlsx(file="PlotGrndCvr.xlsx", sheetName = 'GroundCoverType')
-Plots <- read.xlsx(file="PlotLandUSe.xlsx", sheetName = 'Plots')
-LandUseID <- read.xlsx(file="PlotLandUSe.xlsx", sheetName = 'LandUseID')
-Shrubs <- read.xlsx(file="Shrubs.xlsx", sheetName = 'Shrubs')
-Trees <- read.xlsx(file="TreeBiometrics.xlsx", sheetName = 'Trees')
-Subplots <- read.xlsx(file="TreeShrbCvr.xlsx", sheetName = 'Subplots')
+#For Windows
+#setwd("C:/Users/Sebastian/Google Drive/Urban")
+arboles <- read.xls(xls="Data/arboles_2002-2014.xls", sheet = 'Parcelas con arboles', )
+spp.both <- read.xls(xls="Data/arboles_2002-2014.xls", sheet = 'Spp in both yrs')
+FieldLandUses <- read.xls(xls="Data/FieldLandUses.xls", sheet = 'FieldLandUses')
+GroundCovers <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GroundCovers')
+GroundCoverType <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GrounCoverType')
+Plots <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'Plots')
+LandUseID <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'LandUse ID')
+Shrubs <- read.xls(xls="Data/Shrubs.xls", sheet = 'Shrubs')
+TreeBiom <- read.xls(xls="Data/TreeBiometrics.xls", sheet = 'Trees')
+Subplots <- read.xls(xls="Data/TreeShrbCvr.xls", sheet = 'Subplots')
 ```
 
 ####Structure 
@@ -39,7 +40,6 @@ str(GroundCoverType)
 str(Plots)
 str(LandUseID)
 str(Shrubs)
-str(Trees)
+str(TreeBiom)
 str(Subplots)
 ```
-.
