@@ -8,8 +8,8 @@ Script to fit Biomass model from Urban trees in Santiago.
 
 ####Load Packages
 ```{r Loading Packages, message=FALSE}
-require(gdata)
 require(dplyr)
+require(gdata)
 ```
 
 ####Get Data
@@ -18,28 +18,98 @@ require(dplyr)
 setwd("~/Google Drive/Urban")
 #For Windows
 #setwd("C:/Users/Sebastian/Google Drive/Urban")
+
+source("Analysis/helpers.R")   
+
+#list of trees in each plot
 arboles <- read.xls(xls="Data/arboles_2002-2014.xls", sheet = 'Parcelas con arboles', )
-spp.both <- read.xls(xls="Data/arboles_2002-2014.xls", sheet = 'Spp in both yrs')
-FieldLandUses <- read.xls(xls="Data/FieldLandUses.xls", sheet = 'FieldLandUses')
-GroundCovers <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GroundCovers')
-GroundCoverType <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GrounCoverType')
-Plots <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'Plots')
-LandUseID <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'LandUse ID')
-Shrubs <- read.xls(xls="Data/Shrubs.xls", sheet = 'Shrubs')
-TreeBiom <- read.xls(xls="Data/TreeBiometrics.xls", sheet = 'Trees')
-Subplots <- read.xls(xls="Data/TreeShrbCvr.xls", sheet = 'Subplots')
+##list of trees present in both dates. Maybe not needed
+#spp.both <- read.xls(by_tailnum <- group_by(flights, tailnum)xls="Data/arboles_2002-2014.xls", sheet = 'Spp in both yrs')
+
+#Species parameters dataframe
+species <- read.csv("Data/species.csv")
+rownames(species) <- species$Specie
+
+
+#detailed measurements of each tree in 2014 plots. Height to Crown. Tree height, % shrub below
+#TreeBiom <- read.xls(xls="Data/TreeBiometrics.xls", sheet = 'Trees')
+
+#percent of plot used in the different classes. ORMITP?
+#FieldLandUses <- read.xls(xls="Data/FieldLandUses.xls", sheet = 'FieldLandUses')
+
+#Coordinates, Land use ID on MAP, Date sampled, crew, address
+#Plots <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'Plots')
+#Land use ID used on table above. Description and Abbrev. Sumn of area sampled by Land use
+#LandUseID <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'LandUse ID')
+
+#Ground cover type percentaghe of each plot
+#GroundCovers <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GroundCovers')
+#ground dovert type code. #Cement, grass, Water...
+#GroundCoverType <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GrounCoverType')
+
+#Description of shrubs in each plot. 
+#Shrubs <- read.xls(xls="Datby_tailnum <- group_by(flights, tailnum)by_tailnum <- group_by(flights, tailnum)a/Shrubs.xls", sheet = 'Shrubs')
+
+#Percent of tree, shrubs and plantables in each plot 
+#TreeShrbCvr <- read.xls(xls="Data/TreeShrbCvr.xls", sheet = 'Subplots')
+
+
+
 ```
 
-####Structure 
-```{r}
-str(arboles)
-str(spp.both)
-str(FieldLandUses)
-str(GroundCovers)
-str(GroundCoverType)
-str(Plots)
-str(LandUseID)
-str(Shrubs)
-str(TreeBiom)
-str(Subplots)
+####Biomass formulas
+1: $\exp(a + b \log(\mathrm{DBH}))$
+
+2: $a + b\mathrm{DBH} + c\mathrm{DBH}^d + e\mathrm{H}^f + g\mathrm{DBH}^2\mathrm{H}$
+
+3: $a \pi(\mathrm{Crown} / 2)^2 \times b \mathrm{H}^c$
+
+4: $a\mathrm{H}^b(\mathrm{DBH}/c)^d$
+
+5: $a\mathrm{DBH}^b+c\mathrm{DBH}^d$
+
+6: $\exp(a+b\mathrm{DBH})$
+
+7: $a+b\log(\mathrm{DBH})$
+
+0: No Formula
+
+```{r Biomass calculation, eval=FALSE}
+#convert zero values to NA to avoid estimation problems later
+arboles$Biomass.2002.new = biomass(spp = arboles$Specie,
+                                   dbh =arboles$DBH2002,
+                                   h = arboles$H2002,
+                                   crown = arboles$CROWN2002)
+arboles$Biomass.2014.new = biomass(spp = arboles$Specie,
+                                   dbh =arboles$DBH2014, 
+                                   h = arboles$H2014,
+                                   crown = arboles$CROWN2014)
+```
+
+####Data preparation
+```{r Data preparation}
+
+#Change to NA the values of DBH2014, H2014 and CROWN2014 from the removed trees based on Removed.2014 == 1
+arboles$DBH2014[arboles$Removed.2014==1]  = NA
+arboles$H2014[arboles$Removed.2014==1]  = NA
+arboles$CROWN2014[arboles$Removed.2014==1]  = NA
+arboles$Biomass.2014.new[arboles$Removed.2014==1]  = NA
+arboles$Differences.in.growth[arboles$Removed.2014==1]  = NA
+
+#Change to NA the values of DBH2002, H2002 and CROWN2002 from the ingrowth trees based on In.growth.2014 == 1
+arboles$DBH2002[arboles$In.growth.2014==1]  = NA
+arboles$H2002[arboles$In.growth.2014==1]  = NA
+arboles$CROWN2002[arboles$In.growth.2014==1]  = NA
+arboles$Biomass.2002.new[arboles$In.growth.2014==1]  = 0 #Serves to properly estimat e change later. Does it affects results? Changed after biomass 14.02 estimation below
+
+#Estimate again growth only for those trees present in both times. R is cool and only computes when the 2 values are present
+arboles$Differences.in.growth = arboles$DBH2014 - arboles$DBH2002
+
+#Estimate change is biomass. Ingrowth trees need to be inclured in the change.
+arboles$Biomass14.02.new = arboles$Biomass.2014.new - arboles$Biomass.2002.new 
+arboles$Biomass.2002.new[arboles$In.growth.2014==1]  = NA #Bring back NA to make appropriate calculation
+```
+#### By Plot statistics
+```{r Plot Statistics}
+by_plot <- group_by(arboles, Plot.ID)
 ```
