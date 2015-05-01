@@ -6,14 +6,12 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 
 Script to fit Biomass model from Urban trees in Santiago.
 
-####Load Packages
-```{r Loading Packages, message=FALSE}
+####Get Data
+```{r Reading Data, eval=FALSE}
+#Load Packages
 require(dplyr)
 require(gdata)
-```
 
-####Get Data
-```{r Reading Data}
 #Set working directory
 setwd("~/Google Drive/Urban")
 #For Windows
@@ -23,7 +21,7 @@ source("Analysis/helpers.R")
 
 #list of trees in each plot
 arboles <- read.xls(xls="Data/arboles_2002-2014.xls", sheet = 'Parcelas con arboles', )
-##list of trees present in both dates. Maybe not needed
+##list of trees present in both dates. Better used by exported csv arboles_growth
 #spp.both <- read.xls(by_tailnum <- group_by(flights, tailnum)xls="Data/arboles_2002-2014.xls", sheet = 'Spp in both yrs')
 
 #Species parameters dataframe
@@ -38,9 +36,11 @@ rownames(species) <- species$Specie
 #FieldLandUses <- read.xls(xls="Data/FieldLandUses.xls", sheet = 'FieldLandUses')
 
 #Coordinates, Land use ID on MAP, Date sampled, crew, address
-#Plots <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'Plots')
+Plots <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'Plots')
+rownames(Plots) <- Plots$Plot.ID.Number
 #Land use ID used on table above. Description and Abbrev. Sumn of area sampled by Land use
-#LandUseID <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'LandUse ID')
+LandUseID <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'LandUse ID')
+rownames(LandUseID ) <- LandUseID$Land.Use.ID
 
 #Ground cover type percentaghe of each plot
 #GroundCovers <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GroundCovers')
@@ -52,9 +52,6 @@ rownames(species) <- species$Specie
 
 #Percent of tree, shrubs and plantables in each plot 
 #TreeShrbCvr <- read.xls(xls="Data/TreeShrbCvr.xls", sheet = 'Subplots')
-
-
-
 ```
 
 ####Biomass formulas
@@ -76,40 +73,142 @@ rownames(species) <- species$Specie
 
 ```{r Biomass calculation, eval=FALSE}
 #convert zero values to NA to avoid estimation problems later
-arboles$Biomass.2002.new = biomass(spp = arboles$Specie,
+arboles$Biomass.2002 = biomass(spp = arboles$Specie,
                                    dbh =arboles$DBH2002,
                                    h = arboles$H2002,
                                    crown = arboles$CROWN2002)
-arboles$Biomass.2014.new = biomass(spp = arboles$Specie,
+arboles$Biomass.2014 = biomass(spp = arboles$Specie,
                                    dbh =arboles$DBH2014, 
                                    h = arboles$H2014,
                                    crown = arboles$CROWN2014)
 ```
 
 ####Data preparation
-```{r Data preparation}
-
+```{r Data preparation, eval=FALSE}
 #Change to NA the values of DBH2014, H2014 and CROWN2014 from the removed trees based on Removed.2014 == 1
 arboles$DBH2014[arboles$Removed.2014==1]  = NA
 arboles$H2014[arboles$Removed.2014==1]  = NA
 arboles$CROWN2014[arboles$Removed.2014==1]  = NA
-arboles$Biomass.2014.new[arboles$Removed.2014==1]  = NA
-arboles$Differences.in.growth[arboles$Removed.2014==1]  = NA
+arboles$Biomass.2014[arboles$Removed.2014==1]  = NA
+arboles$Differences.in.growth = NULL
+arboles$Biomass14.02 = NULL
+arboles$DBH2002b = NULL
+arboles$DBH2014b = NULL
 
 #Change to NA the values of DBH2002, H2002 and CROWN2002 from the ingrowth trees based on In.growth.2014 == 1
-arboles$DBH2002[arboles$In.growth.2014==1]  = NA
+arboles$DBH2002[arboles$In.growth.2014==1]  = 0
 arboles$H2002[arboles$In.growth.2014==1]  = NA
 arboles$CROWN2002[arboles$In.growth.2014==1]  = NA
-arboles$Biomass.2002.new[arboles$In.growth.2014==1]  = 0 #Serves to properly estimat e change later. Does it affects results? Changed after biomass 14.02 estimation below
+arboles$Biomass.2002[arboles$In.growth.2014==1]  = 0 #Serves to properly estimat e change later. Does it affects results? Changed after biomass 14.02 estimation below
 
-#Estimate again growth only for those trees present in both times. R is cool and only computes when the 2 values are present
-arboles$Differences.in.growth = arboles$DBH2014 - arboles$DBH2002
+#Estimate basal area in square meters
+arboles$BA2002 = (arboles$DBH2002/2)^2 * pi /10000 
+arboles$BA2014 = (arboles$DBH2014/2)^2 * pi /10000
 
-#Estimate change is biomass. Ingrowth trees need to be inclured in the change.
-arboles$Biomass14.02.new = arboles$Biomass.2014.new - arboles$Biomass.2002.new 
-arboles$Biomass.2002.new[arboles$In.growth.2014==1]  = NA #Bring back NA to make appropriate calculation
+#The change in DBH column only has the trees with measurments in both times. 
+arboles$DBH.02.14.10y = (arboles$DBH2014 - arboles$DBH2002) / arboles$Days.between.sampling.dates * (365 * 10)
+arboles$DBH.02.14.10y[arboles$In.growth.2014==1]  = NA 
+
+#The change in basal area adds the basal area of the recruited trees.
+#this is because I think the analysis of the change will be made at plot level
+#If it is at the species level, then this big growths need to be out
+arboles$BA.02.14.10y = arboles$BA2014 - arboles$BA2002 / arboles$Days.between.sampling.dates * (365 * 10)
+arboles$BA2002[arboles$In.growth.2014==1] = NA
+
+#The change in biomass adds the basal area of the recruited trees.
+#this is because I think the analysis of the change will be made at plot level
+#If it is at the species level, then this big growths need to be out
+arboles$Biomass.02.14.10y = arboles$Biomass.2014 - arboles$Biomass.2002 / arboles$Days.between.sampling.dates * (365 * 10)
+arboles$Biomass.2002[arboles$In.growth.2014==1] = NA
+
+#Estimate change is biomass. Ingrowth trees need to be inclured in the change. Is it needed?
+#arboles$Biomass14.02.new = arboles$Biomass.2014.new - arboles$Biomass.2002.new 
+#arboles$Biomass.2002.new[arboles$In.growth.2014==1]  = NA #Bring back NA to make appropriate calculation
+
+#Adding Plot land use based on PLot ID to arboles list
+arboles$Land.Use.ID = Plots[arboles$Plot.ID,'Land.Use.ID.on.Map']
+arboles$Land.Use.Description = LandUseID[as.character(arboles$Land.Use.ID),'LandUseAbbreviation']
+arboles$Land.Use.ID = NULL
+
+#reduce the database to only growth trees to avoid problems
+arboles_growth = arboles[!is.na(arboles$DBH.02.14.10y),]
+write.csv(arboles_growth , file = 'Data/arboles_growth.csv', row.names = FALSE)
+
 ```
-#### By Plot statistics
-```{r Plot Statistics}
+
+#### By Plot statistics table export
+```{r Plot Statistics, eval=FALSE}
 by_plot <- group_by(arboles, Plot.ID)
+by_plot_results = summarise (by_plot,
+                             Land.Use.Description = unique(Land.Use.Description),
+                             num_species = length(unique(Specie)),
+                             num_trees_2002 = length(Specie) - sum(In.growth.2014, na.rm = TRUE),
+                             num_trees_2014 = length(Specie) - sum(Removed.2014, na.rm = TRUE),
+                             removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),
+                             ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE),
+                             count_spp = length(unique(Specie)),
+                             BA.02.14.10y = sum(BA.02.14.10y, na.rm = TRUE),
+                             Biomass.02.14.10y = sum(Biomass.02.14.10y, na.rm = TRUE)
+                             )
+
+#Exporting data frame to speed analysis later.
+write.csv(by_plot_results, file = 'Data/by_plot_results.csv', row.names = FALSE)
+```
+
+#### By tree statistical analysis
+```{r Species statistics, eval=TRUE}
+require(multcomp)
+
+#Set working directory
+setwd("~/Google Drive/Urban")
+#For Windows
+#setwd("C:/Users/Sebastian/Google Drive/Urban")
+
+#Reading Data
+arboles_growth <- read.csv("Data/arboles_growth.csv")
+
+fit1 = lm(DBH.02.14.10y ~ Specie + Land.Use.Description, data = arboles_growth)
+anova(fit1)
+aov(fit1)
+summary(fit1)
+
+
+#fit2 <- aov(Differences.in.growth ~ Specie, data=arboles)
+
+#by_species <- group_by(.data = arboles_growth, Specie, Land.Use.Description)
+#by_species_results = summarise (by_species,
+#                             mean_growth = mean(Differences.in.growth, na.rm = TRUE #),
+#                             sd_growth = sd(Differences.in.growth, na.rm = TRUE),
+#                             num_trees = length(Differences.in.growth)
+#                             )
+
+```
+
+## By Plots statistical analysis and plots
+```{r Reading Results Data, eval=TRUE}
+require(ggplot2)
+require(gplots)
+require(multcomp)
+
+#Set working directory
+setwd("~/Google Drive/Urban")
+#For Windows
+#setwd("C:/Users/Sebastian/Google Drive/Urban")
+
+#Reading Data
+by_plot_results <- read.csv("Data/by_plot_results.csv")
+
+
+#anova of BA or biomass by land use
+fitBA <- aov(BA.02.14.10y ~ Land.Use.Description, data=by_plot_results)
+fitBiomass <- aov(Biomass.02.14.10y ~ Land.Use.Description, data=by_plot_results)
+fitSpecies <- aov(num_species ~ Land.Use.Description, data=by_plot_results)
+
+
+#Plotting
+plot(cld(glht(fitBA,linfct=mcp(Land.Use.Description='Tukey'))))
+plot(cld(glht(fitBiomass,linfct=mcp(Land.Use.Description='Tukey'))))
+plot(cld(glht(fitSpecies,linfct=mcp(Land.Use.Description='Tukey'))))
+
+
 ```
