@@ -13,9 +13,9 @@ require(dplyr)
 require(gdata)
 
 #Set working directory
-setwd("~/Google Drive/Urban")
+#setwd("~/Google Drive/Urban")
 #For Windows
-#setwd("C:/Users/Sebastian/Google Drive/Urban")
+setwd("C:/Users/Sebastian/Google Drive/Urban")
 
 source("Analysis/helpers.R")   
 
@@ -127,7 +127,7 @@ arboles$Biomass.2002[arboles$In.growth.2014==1] = NA
 
 #Adding Plot land use based on PLot ID to arboles list
 arboles$Land.Use.ID = Plots[arboles$Plot.ID,'Land.Use.ID.on.Map']
-arboles$Land.Use.Description = LandUseID[as.character(arboles$Land.Use.ID),'LandUseAbbreviation']
+arboles$Land.Use.Description = LandUseID[as.character(arboles$Land.Use.ID),'LandUseAbbreviation_grouped']
 arboles$Land.Use.ID = NULL
 
 #reduce the database to only growth trees to avoid problems
@@ -156,13 +156,13 @@ write.csv(by_plot_results, file = 'Data/by_plot_results.csv', row.names = FALSE)
 ```
 
 #### By tree statistical analysis
-```{r Species statistics, eval=TRUE}
+```{r Species statistics, eval=TRUE, message=FALSE}
 require(multcomp)
 
 #Set working directory
-setwd("~/Google Drive/Urban")
+#setwd("~/Google Drive/Urban")
 #For Windows
-#setwd("C:/Users/Sebastian/Google Drive/Urban")
+setwd("C:/Users/Sebastian/Google Drive/Urban")
 
 #Reading Data
 arboles_growth <- read.csv("Data/arboles_growth.csv")
@@ -185,15 +185,15 @@ summary(fit1)
 ```
 
 ## By Plots statistical analysis and plots
-```{r Reading Results Data, eval=TRUE}
+```{r Reading Results Data, eval=TRUE, message=FALSE}
 require(ggplot2)
 require(gplots)
 require(multcomp)
 
 #Set working directory
-setwd("~/Google Drive/Urban")
+#setwd("~/Google Drive/Urban")
 #For Windows
-#setwd("C:/Users/Sebastian/Google Drive/Urban")
+setwd("C:/Users/Sebastian/Google Drive/Urban")
 
 #Reading Data
 by_plot_results <- read.csv("Data/by_plot_results.csv")
@@ -210,5 +210,8 @@ plot(cld(glht(fitBA,linfct=mcp(Land.Use.Description='Tukey'))))
 plot(cld(glht(fitBiomass,linfct=mcp(Land.Use.Description='Tukey'))))
 plot(cld(glht(fitSpecies,linfct=mcp(Land.Use.Description='Tukey'))))
 
+#try to combine species
+#try to make less categories in land use
+#do the regression with only the species with large numbers
 
 ```
