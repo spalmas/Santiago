@@ -20,21 +20,21 @@ biomass <- function(spp, dbh, h, crown){
     g = species[spp_i,'g_eq_biom']
     
     
-    ######If statements to manage species exceptions
-    #The range of dbh vlaues for Schinus biomass eq is 8-45
-    if (spp_i == 'Schinus molle' & dbh_i > 45){ dbh_i = 45 }
-
-    #The range of dbh vlaues for Salix babylonica probaly does not reach 80. Dbh  changed to 40
-    if (spp_i == 'Salix babylonica' & dbh_i > 40){ dbh_i = 40 }
-    
-    #The range of dbh vlaues for citris limon probaly does not reach 156. Dbh changed to 15
-    if (spp_i == 'Citrus limon' & dbh_i > 15){ dbh_i = 15 }
-    
-    #The range of dbh vlaues for Prunus armeniaca probaly does not reach 134. Dbh changed to 25
-    if (spp_i == 'Prunus armeniaca' & dbh_i > 25){ dbh_i = 25 }
-    
-    #The range of dbh vlaues for Jacaranda mimosifolia probaly does not reach 166. Dbh changed to 20
-    if (spp_i == 'Jacaranda mimosifolia' & dbh_i > 20){ dbh_i = 20 }
+#     ######If statements to manage species exceptions
+#     #The range of dbh vlaues for Schinus biomass eq is 8-45
+#     if (spp_i == 'Schinus molle' & dbh_i > 45){ dbh_i = 45 }
+# 
+#     #The range of dbh vlaues for Salix babylonica probaly does not reach 80. Dbh  changed to 40
+#     #if (spp_i == 'Salix babylonica' & dbh_i > 40){ dbh_i = 40 }
+#     
+#     #The range of dbh vlaues for citris limon probaly does not reach 156. Dbh changed to 15
+#     if (spp_i == 'Citrus limon' & dbh_i > 15){ dbh_i = 15 }
+#     
+#     #The range of dbh vlaues for Prunus armeniaca probaly does not reach 134. Dbh changed to 25
+#     if (spp_i == 'Prunus armeniaca' & dbh_i > 25){ dbh_i = 25 }
+#     
+#     #The range of dbh vlaues for Jacaranda mimosifolia probaly does not reach 166. Dbh changed to 20
+#     if (spp_i == 'Jacaranda mimosifolia' & dbh_i > 20){ dbh_i = 20 }
     
     #######Biomass estimate
     if (biom_eq_type == 1){
@@ -63,7 +63,7 @@ biomass <- function(spp, dbh, h, crown){
     }
     
     #Delete all trees with biomass larger than 2500, biomass eq biomass eq put of limits? measurement too big?
-    if (!is.na(biomass_i[i]) & biomass_i[i] > 2500){biomass_i[i] = 0} 
+    #if (!is.na(biomass_i[i]) & biomass_i[i] > 2500){biomass_i[i] = 0} 
     
     i = i + 1
   }
