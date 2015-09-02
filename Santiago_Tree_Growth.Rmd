@@ -1,263 +1,83 @@
 ---
-title: "Analysis of Santiago Urban Tree Growth"
+title: "Analysis of Santiago Urban Individual Tree Growth"
 author: "spp"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 
-Script to fit Biomass model from Urban trees in Santiago.
+Script to fit DAP, BA and Biomass growth model per species or classification of species
+The arboles_ growth.xls file is generated from first part of Santiago_ LandUse_Trees.Rmd
 
-####Get Data
-```{r Reading Data, eval=FALSE}
-#Load Packages
+#### Reading Data
+```{r Reading data and , eval=TRUE, message=FALSE}
 require(dplyr)
-require(gdata)
-
 #Set working directory
-setwd("~/Google Drive/Urban")
+#setwd("~/Google Drive/Urban")
 #For Windows
-#setwd("C:/Users/Sebastian/Google Drive/Urban")
-
-source("Analysis/helpers.R")   
-
-#list of trees in each plot
-arboles <- read.xls(xls="Data/arboles_2002-2014.xls", sheet = 'Parcelas con arboles' )
-##list of trees present in both dates. Better used by exported csv arboles_growth
-#spp.both <- read.xls(by_tailnum <- group_by(flights, tailnum)xls="Data/arboles_2002-2014.xls", sheet = 'Spp in both yrs')
-
-#Species parameters dataframe
-species <- read.csv("Data/species.csv")
-rownames(species) <- species$Specie
-
-
-#detailed measurements of each tree in 2014 plots. Height to Crown. Tree height, % shrub below
-#TreeBiom <- read.xls(xls="Data/TreeBiometrics.xls", sheet = 'Trees')
-
-#percent of plot used in the different classes. ORMITP?
-#FieldLandUses <- read.xls(xls="Data/FieldLandUses.xls", sheet = 'FieldLandUses')
-
-#Coordinates, Land use ID on MAP, Date sampled, crew, address
-Plots <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'Plots')
-rownames(Plots) <- Plots$Plot.ID.Number
-#Land use ID used on table above. Description and Abbrev. Sumn of area sampled by Land use
-LandUseID <- read.xls(xls="Data/PlotLandUSe.xls", sheet = 'LandUse ID')
-rownames(LandUseID ) <- LandUseID$Land.Use.ID
-
-#Ground cover type percentaghe of each plot
-#GroundCovers <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GroundCovers')
-#ground dovert type code. #Cement, grass, Water...
-#GroundCoverType <- read.xls(xls="Data/PlotGrndCvr.xls", sheet = 'GrounCoverType')
-
-#Description of shrubs in each plot. 
-#Shrubs <- read.xls(xls="Datby_tailnum <- group_by(flights, tailnum)by_tailnum <- group_by(flights, tailnum)a/Shrubs.xls", sheet = 'Shrubs')
-
-#Percent of tree, shrubs and plantables in each plot 
-#TreeShrbCvr <- read.xls(xls="Data/TreeShrbCvr.xls", sheet = 'Subplots')
-```
-
-####Biomass formulas
-1: $\exp(a + b \log(\mathrm{DBH}))$
-
-2: $a + b\mathrm{DBH} + c\mathrm{DBH}^d + e\mathrm{H}^f + g\mathrm{DBH}^2\mathrm{H}$
-
-3: $a \pi(\mathrm{Crown} / 2)^2 \times b \mathrm{H}^c$
-
-4: $a\mathrm{H}^b(\mathrm{DBH}/c)^d$
-
-5: $a\mathrm{DBH}^b+c\mathrm{DBH}^d$
-
-6: $\exp(a+b\mathrm{DBH})$
-
-7: $a+b\log(\mathrm{DBH})$
-
-0: No Formula
-
-```{r Biomass calculation, eval=FALSE}
-#convert zero values to NA to avoid estimation problems later
-arboles$Biomass.2002 = biomass(spp = arboles$Specie,
-                               dbh =arboles$DBH2002,
-                               h = arboles$H2002,
-                               crown = arboles$CROWN2002)
-arboles$Biomass.2014 = biomass(spp = arboles$Specie,
-                               dbh =arboles$DBH2014, 
-                               h = arboles$H2014,
-                               crown = arboles$CROWN2014)
-
-#hist(arboles$Biomass.2002)
-```
-
-####Data preparation
-```{r Data preparation, eval=FALSE}
-#Change to NA the values of DBH2014, H2014 and CROWN2014 from the removed trees based on Removed.2014 == 1
-arboles$DBH2014[arboles$Removed.2014==1]  = NA
-arboles$H2014[arboles$Removed.2014==1]  = NA
-arboles$CROWN2014[arboles$Removed.2014==1]  = NA
-arboles$Biomass.2014[arboles$Removed.2014==1]  = 0
-arboles$Differences.in.growth = NULL
-arboles$Biomass14.02 = NULL  #Eliminates previously biomass estimates
-arboles$DBH2002b = NULL #Eliminates weird second dbh
-arboles$DBH2014b = NULL #Eliminates weird second dbh
-
-#Change to NA the values of DBH2002, H2002 and CROWN2002 from the ingrowth trees based on In.growth.2014 == 1
-arboles$DBH2002[arboles$In.growth.2014==1]  = NA
-arboles$H2002[arboles$In.growth.2014==1]  = NA
-arboles$CROWN2002[arboles$In.growth.2014==1]  = NA
-arboles$Biomass.2002[arboles$In.growth.2014==1]  = 0 #Serves to properly estimat e change later.
-
-#Do we need to estimate growth on 10 years?
-#arboles$DBH2012 = arboles$DBH2002  + (arboles$DBH2014 - arboles$DBH2002)/ arboles$Days.between.sampling.dates * (365 * 10)
-#arboles$H2012 = arboles$H2002  + (arboles$H2014 - arboles$H2002)/ arboles$Days.between.sampling.dates * (365 * 10)
-
-
-#The change in DBH column only has the trees with measurments in both times. #Only for growth regression
-#Considering a linear dbh growth
-arboles$DBH.02.12 = (arboles$DBH2014 - arboles$DBH2002) / arboles$Days.between.sampling.dates * (365 * 10)
-arboles$DBH.02.12[arboles$In.growth.2014==1]  = NA 
-
-#Estimate basal area in square meters
-arboles$BA2002 = (arboles$DBH2002/2)^2 * pi /10000 
-arboles$BA2014 = (arboles$DBH2014/2)^2 * pi /10000
-#The change in basal area adds the basal area of the recruited trees.
-#considering a linear basal area growht (not estimated with adjusted dbh)
-arboles$BA2002[arboles$In.growth.2014==1]  = 0
-arboles$BA2014[arboles$Removed.2014==1]  = 0
-arboles$BA.02.12 = arboles$BA2014 - arboles$BA2002 / arboles$Days.between.sampling.dates * (365 * 10)
-arboles$BA.02.14 = arboles$BA2014 - arboles$BA2002
-arboles$BA2002[arboles$In.growth.2014 == 1] = NA
-arboles$BA2014[arboles$Removed.2014==1]  = NA
-
-#The change in biomass adds the basal area of the recruited trees.
-arboles$Biomass.02.14 = arboles$Biomass.2014 - arboles$Biomass.2002
-arboles$Biomass.2002[arboles$In.growth.2014==1] = NA
-arboles$Biomass.2014[arboles$Removed.2014==1]  = NA
-
-#Adding Plot land use based on PLot ID to arboles list
-arboles$Land.Use.ID = Plots[arboles$Plot.ID,'Land.Use.ID.on.Map']
-arboles$Land.Use.Description = LandUseID[as.character(arboles$Land.Use.ID),'LandUseAbbreviation']
-arboles$Land.Use.Description_grouped = LandUseID[as.character(arboles$Land.Use.ID),'LandUseAbbreviation_grouped']
-arboles$Land.Use.ID = NULL
-
-#reduce and export the database if growth trees to avoid problems
-write.csv(arboles[!is.na(arboles$DBH.02.12),] , file = 'Data/arboles_growth.csv', row.names = FALSE)
-```
-
-#### By Plot statistics table export
-```{r Plot Statistics, eval=FALSE}
-by_plot <- group_by(arboles, Plot.ID)
-by_plot_results = summarise (by_plot,
-                             Land.Use.Description = unique(Land.Use.Description),
-                             Land.Use.Description_grouped = unique(Land.Use.Description_grouped),
-                             num_species = length(unique(Specie)),
-                             num_trees_2002 = length(Specie) - sum(In.growth.2014, na.rm = TRUE),
-                             num_trees_2014 = length(Specie) - sum(Removed.2014, na.rm = TRUE),
-                             removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),
-                             ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE),
-                             BA2002 = sum(BA2002, na.rm = TRUE),
-                             BA2014 = sum(BA2014, na.rm = TRUE),
-                             BA.02.14 = sum(BA.02.14, na.rm = TRUE),
-                             Biomass.2002 = sum(Biomass.2002, na.rm = TRUE),
-                             Biomass.2014 = sum(Biomass.2014, na.rm = TRUE),
-                             Biomass.02.14 = sum(Biomass.02.14, na.rm = TRUE)
-                             )
-
-#Exporting data frame to speed analysis later.
-write.csv(by_plot_results, file = 'Data/by_plot_results.csv', row.names = FALSE)
-```
-
-
-## By Plots statistical analysis and plots
-```{r Reading Results Data, eval=TRUE, message=FALSE, warnings = FALSE}
-require(ggplot2)
-require(gplots)
-require(multcomp)
-
-#Set working directory
-setwd("~/Google Drive/Urban")
-#For Windows
-#setwd("C:/Users/Sebastian/Google Drive/Urban")
+setwd("C:/Users/Sebastian/Google Drive/Urban")
 
 #Reading Data
-by_plot_results <- read.csv("Data/by_plot_results.csv")
-
-#print number of plots per land use?
-table(by_plot_results$Land.Use.Description)
-table(by_plot_results$Land.Use.Description_grouped)
-
-#######anova of BA, biomass and number of species by land use Original Classification
-fitBA.2002 = aov(BA2002 ~ Land.Use.Description, data=by_plot_results)
-fitBA.2014 = aov(BA2014 ~ Land.Use.Description, data=by_plot_results)
-fitBiomass.2002 = aov(Biomass.2002 ~ Land.Use.Description, data=by_plot_results)
-fitBiomass.2014 = aov(Biomass.2014 ~ Land.Use.Description, data=by_plot_results)
-fitSpecies <- aov(num_species ~ Land.Use.Description, data=by_plot_results)
-
-#######anova of BA, biomass and number of species by land use Original Classification
-fitBA.2002_grouped  = aov(BA2002 ~ Land.Use.Description_grouped , data=by_plot_results)
-fitBA.2014_grouped  = aov(BA2014 ~ Land.Use.Description_grouped , data=by_plot_results)
-fitBiomass.2002_grouped  = aov(Biomass.2002 ~ Land.Use.Description_grouped , data=by_plot_results)
-fitBiomass.2014_grouped  = aov(Biomass.2014 ~ Land.Use.Description_grouped , data=by_plot_results)
-fitSpecies_grouped  <- aov(num_species ~ Land.Use.Description_grouped , data=by_plot_results)
-
-par(mfrow = c(1,2))
-plot(cld(glht(fitBA.2002,linfct=mcp(Land.Use.Description='Tukey'))),
-     main = '2002 Basal Area per Land Use')
-plot(cld(glht(fitBA.2014,linfct=mcp(Land.Use.Description='Tukey'))),
-     main = '2014 Basal Area per Land Use')
-par(mfrow = c(1,2))
-plot(cld(glht(fitBiomass.2002,linfct=mcp(Land.Use.Description='Tukey'))),
-     main = '2002 Biomass per Land Use')
-plot(cld(glht(fitBiomass.2014,linfct=mcp(Land.Use.Description='Tukey'))),
-     main = '2014 Biomass per Land Use')
-par(mfrow = c(1,1))
-plot(cld(glht(fitSpecies,linfct=mcp(Land.Use.Description='Tukey'))),
-     main = 'Number of species per Land Use')
-
-   
-par(mfrow = c(1,2))
-plot(cld(glht(fitBA.2002_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
-     main = '2002 Basal Area per grouped Land Use')
-plot(cld(glht(fitBA.2014_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
-     main = '2014 Basal Area per grouped Land Use')
-par(mfrow = c(1,2))
-plot(cld(glht(fitBiomass.2002_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
-     main = '2002 Biomass per grouped Land Use')
-plot(cld(glht(fitBiomass.2014_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
-     main = '2014 Biomass per grouped Land Use')
-par(mfrow = c(1,1))
-plot(cld(glht(fitSpecies_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
-     main = 'Number of species per grouped Land Use')
-
-#######anova of BA change, biomass change by land use
-fitBA_change <- aov(BA.02.14 ~ Land.Use.Description, data=by_plot_results)
-fitBiomass_change <- aov(Biomass.02.14 ~ Land.Use.Description, data=by_plot_results)
-fitBA_change_grouped<- aov(BA.02.14 ~ Land.Use.Description_grouped , data=by_plot_results)
-fitBiomass_change_grouped <- aov(Biomass.02.14 ~ Land.Use.Description_grouped , data=by_plot_results)
-
-#Plotting
-par(mfrow = c(1,2))
-plot(cld(glht(fitBA_change,linfct=mcp(Land.Use.Description='Tukey'))),
-     main = 'Change of Basal Area per Land Use')
-plot(cld(glht(fitBiomass_change,linfct=mcp(Land.Use.Description='Tukey'))),
-     main = 'Change of Biomass per Land Use')
-par(mfrow = c(1,2))
-plot(cld(glht(fitBA_change_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
-     main = 'Change of Basal Area per grouped Land Use')
-plot(cld(glht(fitBiomass_change_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
-     main = 'Change of Biomass per grouped Land Use')
+arboles_growth <- read.csv("Data/arboles_growth.csv")
 ```
 
-
-#### Tree growth statistical analysis
-```{r Species statistics, eval=TRUE, message=FALSE}
-require(dplyr)
+#### Tree growth statistical analysis by classes
+```{r Statistics by classes, eval=TRUE, message=FALSE}
 require(lme4)
 require(multcomp)
 
 #Set working directory
-setwd("~/Google Drive/Urban")
+#setwd("~/Google Drive/Urban")
 #For Windows
-#setwd("C:/Users/Sebastian/Google Drive/Urban")
+setwd("C:/Users/Sebastian/Google Drive/Urban")
 
-#Reading Data
-arboles_growth <- read.csv("Data/arboles_growth.csv")
+
+#Fitting models for DBH, BA and Biomass growth per species. Randomizing stuff. Only for grouped categories
+fitGrowthDBH_class <- lmer(DBH.02.12 ~ Class + (1|Land.Use.Description_grouped), data=arboles_growth)
+summary(fitGrowthDBH_class)
+fitGrowthBA_class <- lmer(BA.02.12   ~ Class + (1|Land.Use.Description_grouped), data=arboles_growth)
+summary(fitGrowthBA_class)
+fitGrowthBiomass_class <- lmer(Biomass.02.14 ~ Class + (1|Land.Use.Description_grouped), data=arboles_growth)
+summary(fitGrowthBiomass_class)
+
+
+#Plots
+aovGrowthDBH_class  = aov(DBH.02.12 ~ Class , data=arboles_growth)
+aovGrowthBA_class  = aov(BA.02.12 ~ Class , data=arboles_growth)
+aovGrowthBiomass_class  = aov(Biomass.02.14 ~ Class , data=arboles_growth)
+par(mfrow = c(1,3))
+plot(cld(glht(aovGrowthDBH_class,linfct=mcp(Class='Tukey'))),
+     main = 'DBH Growth per species Class', las = 3)
+plot(cld(glht(aovGrowthBA_class,linfct=mcp(Class='Tukey'))),
+     main = 'Basal Area Growth per species Class', las = 3)
+plot(cld(glht(aovGrowthBiomass_class,linfct=mcp(Class='Tukey'))),
+     main = 'Biomasa Growth per species Class', las = 3)
+
+#Code to get summary means for BA and BIomass growth per class
+se <- function(x) sqrt(var(x)/length(x))
+model.tables(aovGrowthDBH_class, "means", se = TRUE)
+aggregate(arboles_growth$DBH.02.12, by=list(arboles_growth$Class), FUN=se)
+model.tables(aovGrowthBA_class, "means", se = TRUE)
+aggregate(arboles_growth$BA.02.12, by=list(arboles_growth$Class), FUN=se)
+model.tables(aovGrowthBiomass_class, "means", se = TRUE)
+aggregate(arboles_growth$Biomass.02.14, by=list(arboles_growth$Class), FUN=se)
+
+```
+
+```{r Exporting plots by Class, eval=TRUE, message=FALSE, echo = FALSE, warnings = FALSE}
+#### To export graphs to files by classes
+#Set working directory
+#setwd("~/Google Drive/Urban")
+#For Windows
+setwd("C:/Users/Sebastian/Google Drive/Urban")
+
+#DBH and BA Growth per species (only for those with high number of samples)
+par(mfrow = c(1,2))
+png("Analysis/Plots/GrowthDBH-BA_Class.png")
+plot(cld(glht(aovGrowthDBH_class,linfct=mcp(Class='Tukey'))), las = 3)
+plot(cld(glht(aovGrowthBA_class,linfct=mcp(Class='Tukey'))), las = 3)
+dev.off()
+```
+
+```{r Trash code, eval=FALSE, echo=FALSE}
 
 #Choosing only the species with many smamples
 spp_for_growth = c('Robinia pseudoacacia', 
@@ -267,10 +87,11 @@ spp_for_growth = c('Robinia pseudoacacia',
                    'Citrus limon')
 arboles_growth_reduced = arboles_growth[arboles_growth$Specie %in% spp_for_growth,]
 
+
 #Fitting models for DBH, BA and Biomass growth per species. Randomizing stuff. Only for grouped categories
 fitGrowthDBH <- lmer(DBH.02.12 ~ Specie + (1|Land.Use.Description_grouped), data=arboles_growth_reduced)
 summary(fitGrowthDBH)
-fitGrowthBA <- lmer(BA.02.12   ~ Specie+ (1|Land.Use.Description_grouped), data=arboles_growth_reduced)
+fitGrowthBA <- lmer(BA.02.12   ~ Specie + (1|Land.Use.Description_grouped), data=arboles_growth_reduced)
 summary(fitGrowthBA)
 fitGrowthBiomass <- lmer(Biomass.02.14 ~ Specie+ (1|Land.Use.Description_grouped), data=arboles_growth_reduced)
 summary(fitGrowthBiomass)
@@ -282,85 +103,17 @@ aovGrowthBA  = aov(BA.02.12 ~ Specie , data=arboles_growth_reduced)
 aovGrowthBiomass  = aov(Biomass.02.14 ~ Specie , data=arboles_growth_reduced)
 par(mfrow = c(1,3))
 plot(cld(glht(aovGrowthDBH,linfct=mcp(Specie='Tukey'))),
-     main = 'DBH Growth per species')
+     main = 'DBH Growth per species', las = 3)
 plot(cld(glht(aovGrowthBA,linfct=mcp(Specie='Tukey'))),
-     main = 'Basal Area Growth per species')
+     main = 'Basal Area Growth per species', las = 3)
 plot(cld(glht(aovGrowthBiomass,linfct=mcp(Specie='Tukey'))),
-     main = 'Biomasa Growth per species')
+     main = 'Biomasa Growth per species', las = 3)
 
-```
-
-#### Code to export graphs to files
-```{r Exporting plots, eval=TRUE, message=FALSE, echo = FALSE, warnings = FALSE}
-#Set working directory
-setwd("~/Google Drive/Urban")
-#For Windows
-#setwd("C:/Users/Sebastian/Google Drive/Urban")
-
-#All categories plots
-png("Analysis/Plots/BasalArea2002.png")
-plot(cld(glht(fitBA.2002,linfct=mcp(Land.Use.Description='Tukey'))))
-dev.off()
-png("Analysis/Plots/BasalArea2014.png")
-plot(cld(glht(fitBA.2014,linfct=mcp(Land.Use.Description='Tukey'))))
-dev.off()
-png("Analysis/Plots/Biomass2002.png")
-plot(cld(glht(fitBiomass.2002,linfct=mcp(Land.Use.Description='Tukey'))))
-dev.off()
-png("Analysis/Plots/Biomass2014.png")
-plot(cld(glht(fitBiomass.2014,linfct=mcp(Land.Use.Description='Tukey'))))
-dev.off()
-png("Analysis/Plots/species_number.png")
-plot(cld(glht(fitSpecies,linfct=mcp(Land.Use.Description='Tukey'))))
-dev.off()
-
-#Grouped categories plots
-png("Analysis/Plots/BasalArea2002_grouped.png")
-plot(cld(glht(fitBA.2002_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))))
-dev.off()
-png("Analysis/Plots/BasalArea2014_grouped.png")
-plot(cld(glht(fitBA.2014_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))))
-dev.off()
-png("Analysis/Plots/Biomass2002_grouped.png")
-plot(cld(glht(fitBiomass.2002_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))))
-dev.off()
-png("Analysis/Plots/Biomass2014_grouped.png")
-plot(cld(glht(fitBiomass.2014_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))))
-dev.off()
-png("Analysis/Plots/species_number_grouped.png")
-plot(cld(glht(fitSpecies_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))))
-dev.off()
-
-#All Categoreis BA and Biomass change plots
-png("Analysis/Plots/BasalArea_Change.png")
-plot(cld(glht(fitBA_change,linfct=mcp(Land.Use.Description='Tukey'))))
-dev.off()
-png("Analysis/Plots/Biomass_Change.png")
-plot(cld(glht(fitBiomass_change,linfct=mcp(Land.Use.Description='Tukey'))))
-dev.off()
-
-#Grouped Categoreis BA and Biomass change plots
-png("Analysis/Plots/BasalArea_Change.png")
-plot(cld(glht(fitBA_change_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))))
-dev.off()
-png("Analysis/Plots/Biomass_Change.png")
-plot(cld(glht(fitBiomass_change_grouped,linfct=mcp(Land.Use.Description_grouped='Tukey'))))
-dev.off()
-
-#DBH and BA Growth per species (only for those with high number of samples)
-png("Analysis/Plots/GrowthDBH.png")
-plot(cld(glht(aovGrowthDBH,linfct=mcp(Specie='Tukey'))))
-dev.off()
-png("Analysis/Plots/GrowthBA.png")
-plot(cld(glht(aovGrowthBA,linfct=mcp(Specie='Tukey'))))
+par(mfrow = c(1,2))
+png("Analysis/Plots/GrowthBA-DBH.png")
+plot(cld(glht(aovGrowthDBH,linfct=mcp(Specie='Tukey'))),
+     las = 3)
+plot(cld(glht(aovGrowthBA,linfct=mcp(Specie='Tukey'))),
+     las = 3)
 dev.off()
 ```
-#### TRASH CODE
-```{r Trash code, eval=FALSE, message=FALSE, echo = FALSE}
-#code to print DBH mean growth per species
-by_species <- group_by(.data = arboles_growth_reduced, Specie)
-by_species_results = summarise (by_species,
-                             mean_growth = mean(DBH.02.12, na.rm = TRUE ),
-                             sd_growth = sd(DBH.02.12, na.rm = TRUE),
-                             num_trees = length(DBH.02.12))
-print(by_species_results)
