@@ -58,6 +58,9 @@ biomass <- function(spp, dbh, h, crown){
     } else if (biom_eq_type == 7){
       biomass_i[i] = a + b * log(dbh_i)
       
+    } else if (biom_eq_type == 8){
+      biomass_i[i] = a * h_i^b + c * h_i^d
+      
     } else if (biom_eq_type == 0){
       biomass_i[i] = 0
     }

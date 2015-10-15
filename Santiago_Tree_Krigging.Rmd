@@ -1,0 +1,48 @@
+---
+title: "Analysis of Santiago Tree Growth Distribution"
+author: "spp"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+Script to map the distribution of tree growth. Krigging.
+
+#### Reading Data
+```{r Reading data and , eval=TRUE, message=FALSE}
+
+#======================================================================================
+
+#Set working directory
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+# reading data
+plots <- read.csv('Data/Plots.csv')
+
+hist(plots$Biomass.02.14)
+summary(plots$Biomass.02.14)
+
+a <- cbind(plots$GPS.Coordinate..X.,
+           plots$GPS.Coordinate..Y.,
+           plots$Biomass.02.14)
+range(a[,1])
+
+n <- as.geodata(a)
+
+x.range <- range(a[,1])
+y.range <- range(a[,2])
+
+x = seq(from=x.range[1], to=x.range[2], by=1)
+y = seq(from=y.range[1], to=y.range[2], by=1)
+length(x)
+length(y)
+xv <- rep(x,length(y))
+yv <- rep(y, each=length(x))
+in_mat <- as.matrix(cbind(xv,yv))
+plot(in_mat)
+
+
+
+```
