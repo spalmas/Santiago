@@ -1,0 +1,59 @@
+
+## By tree type analysis
+#Trying to find differences in mortality and resprouting according to tree type
+```{r Reading Results Data, eval=TRUE, message=FALSE, warnings = FALSE}
+require(ggplot2)
+require(gplots)
+require(multcomp)
+require(dplyr)
+
+#Set working directory
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+#Reading Data
+arboles <- read.csv("Data/arboles_all.csv")
+#changing NA to 0
+arboles$In.growth.2014[is.na(arboles$In.growth.2014)] <- 0
+arboles$Removed.2014[is.na(arboles$Removed.2014)] <- 0
+
+#create a table summarizing results 
+arboles <- dplyr::group_by(.data = arboles, Class)
+arboles_results = summarize (arboles,
+                             n  = length(Removed.2014),
+                             removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),
+                             ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE)
+)
+arboles_results
+
+#======================================================================================
+# Proportion test per tree type
+prop.test(x = arboles_results$removed_trees.2014, n = arboles_results$n)
+prop.test(x = arboles_results$ingrowth_trees.2014, n = arboles_results$n)
+
+
+#======================================================================================
+#Try by species
+#create a table summarizing results 
+arboles <- dplyr::group_by(.data = arboles, Specie_code)
+arboles_results_spp = summarize (arboles,
+                                 n  = length(Removed.2014), #total trees that have existed
+                                 removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),
+                                 ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE)
+)
+
+#subset to only trees with more than 10 individuals 
+arboles_results_spp = arboles_results_spp[arboles_results_spp$n > 10,]
+
+#======================================================================================
+
+# Proportion test per tree type
+prop.test(x = arboles_results_spp$removed_trees.2014, n = arboles_results_spp$n)
+prop.test(x = arboles_results_spp$ingrowth_trees.2014, n = arboles_results_spp$n)
+
+
+
+```

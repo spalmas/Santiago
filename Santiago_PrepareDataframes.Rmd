@@ -1,0 +1,203 @@
+---
+title:"Santiago_Prepare Dataframes"
+author:"Sebastian Palmas"
+date:`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+This script prepares the Santiago data by importing original database, 
+
+##Get Data
+```{r Reading Data, message=FALSE, warning=FALSE}
+#Load Packages
+require(dplyr)
+require(gdata)
+
+# Getting working directory
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+#  Importing biomass calculating function from helper file
+source("Analysis/helpers.R")   
+
+#Reading oriiginal data
+arboles <- read.xls(xls="Data/arboles_2002-2014.xls", sheet = 'Parcelas con arboles' )
+
+#Species parameters dataframe
+species <- read.csv("Data/species.csv")
+rownames(species) <- species$Specie
+
+#Coordinates, Land use ID on MAP, Date sampled, crew, address, groundcovers from PlotGrndCvr.xls
+Plots <- read.csv("Data/Plots_original.csv")
+rownames(Plots) <- Plots$Plot.ID
+#Land use ID used on table above. Description and Abbrev. Sumn of area sampled by Land use
+LandUseID <- read.csv("Data/PlotLandUSe_Code.csv")
+rownames(LandUseID ) <- LandUseID$Land.Use.ID
+
+#Description of shrubs in each plot. 
+#Shrubs <- read.xls(xls="Datby_tailnum <- group_by(flights, tailnum)by_tailnum <- group_by(flights, tailnum)a/Shrubs.xls", sheet = 'Shrubs')
+
+#Percent of tree, shrubs and plantables in each plot in 2014
+#TreeShrbCvr <- read.xls(xls="Data/TreeShrbCvr.xls", sheet = 'Subplots')
+
+#detailed measurements of each tree in 2014 plots. Height to Crown. Tree height, % shrub below
+#TreeBiom <- read.xls(xls="Data/TreeBiometrics.xls", sheet = 'Trees')
+
+#percent of plot used in the different classes. ORMITP?
+#FieldLandUses <- read.xls(xls="Data/FieldLandUses.xls", sheet = 'FieldLandUses')
+```
+
+##Biomass estimation and definition of allometric equations
+These are the equation forms that are present in our species. Each species is assigned an equation form and parameters. This data is in species.csv file. This is a way reduce size of database, have only one table with all species information and reduce errors in calculating biomass (avoid calculating with different formulas the same species).  Also makes easy to change equations if errors are found.
+
+1: $\exp(a + b \log(\mathrm{DBH}))$
+
+2: $a + b\mathrm{DBH} + c\mathrm{DBH}^d + e\mathrm{H}^f + g\mathrm{DBH}^2\mathrm{H}$
+
+3: $a \pi(\mathrm{Crown} / 2)^2 \times b \mathrm{H}^c$
+
+4: $a\mathrm{H}^b(\mathrm{DBH}/c)^d$
+
+5: $a\mathrm{DBH}^b+c\mathrm{DBH}^d$
+
+6: $\exp(a+b\mathrm{DBH})$
+
+7: $a+b\log(\mathrm{DBH})$
+
+8: $a\mathrm{H}^b+c\mathrm{H}^d$
+
+0: No Formula
+
+####Data preparation
+```{r Data preparation, message=FALSE, warning=FALSE}
+# Getting working directory
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+
+#Biomass estimation from formulas using helper function
+arboles$Biomass.2002 = biomass(spp = arboles$Specie,
+                               dbh =arboles$DBH2002,
+                               h = arboles$H2002,
+                               crown = arboles$CROWN2002)
+arboles$Biomass.2014 = biomass(spp = arboles$Specie,
+                               dbh =arboles$DBH2014, 
+                               h = arboles$H2014,
+                               crown = arboles$CROWN2014)
+
+
+#Change to NA the values of DBH2014, H2014 and CROWN2014 from the removed trees based on Removed.2014 == 1
+arboles$DBH2014[arboles$Removed.2014==1]  = NA
+arboles$H2014[arboles$Removed.2014==1]  = NA
+arboles$CROWN2014[arboles$Removed.2014==1]  = NA
+arboles$Biomass.2014[arboles$Removed.2014==1]  = 0
+arboles$Differences.in.growth = NULL
+arboles$Biomass14.02 = NULL  #Eliminates previously biomass estimates
+arboles$DBH2002b = NULL #Eliminates weird second dbh
+arboles$DBH2014b = NULL #Eliminates weird second dbh
+
+#Change to NA the values of DBH2002, H2002 and CROWN2002 from the ingrowth trees based on In.growth.2014 == 1
+arboles$DBH2002[arboles$In.growth.2014==1]  = NA
+arboles$H2002[arboles$In.growth.2014==1]  = NA
+arboles$CROWN2002[arboles$In.growth.2014==1]  = NA
+arboles$Biomass.2002[arboles$In.growth.2014==1]  = 0 #Serves to properly estimat e change later.
+
+#The change in DBH column only has the trees with measurments in both times. #Only for growth regression
+#Considering a linear dbh growth
+arboles$DBH.02.12 = (arboles$DBH2014 - arboles$DBH2002) / arboles$Days.between.sampling.dates * (365 * 10)
+arboles$DBH.02.12[arboles$In.growth.2014==1]  = NA 
+
+#Estimate basal area in square meters
+arboles$BA2002 = (arboles$DBH2002/2)^2 * pi /10000 
+arboles$BA2014 = (arboles$DBH2014/2)^2 * pi /10000
+#The change in basal area adds the basal area of the recruited trees.
+#considering a linear basal area growht (not estimated with adjusted dbh)
+arboles$BA2002[arboles$In.growth.2014==1]  = 0
+arboles$BA2014[arboles$Removed.2014==1]  = 0
+arboles$BA.02.12 = arboles$BA2014 - arboles$BA2002 / arboles$Days.between.sampling.dates * (365 * 10)
+arboles$BA.02.14 = arboles$BA2014 - arboles$BA2002
+arboles$BA2002[arboles$In.growth.2014 == 1] = NA
+arboles$BA2014[arboles$Removed.2014==1]  = NA
+
+#The change in biomass adds the basal area of the recruited trees.
+arboles$Biomass.02.14 = arboles$Biomass.2014 - arboles$Biomass.2002
+arboles$Biomass.2002[arboles$In.growth.2014==1] = NA    #trees recruited in 2014 do not add to the biomass in 2002. 
+arboles$Biomass.2014[arboles$Removed.2014==1]  = NA   #trees dead by 2014 do not add to the biomass in 2014. 
+
+#Adding Plot land use based on PLot ID to arboles list
+arboles$Land.Use.ID = Plots[as.character(arboles$Plot.ID),'Land.Use.ID.on.Map']
+arboles$Land.Use.Description = LandUseID[as.character(arboles$Land.Use.ID),'LandUseAbbreviation']
+arboles$Land.Use.Description_grouped = LandUseID[as.character(arboles$Land.Use.ID),'LandUseAbbreviation_grouped']
+arboles$GrndCvrClass = Plots[as.character(arboles$Land.Use.ID),'Perm_degree']
+
+#Add species code and classification of trees from excel
+arboles$Class = species[as.character(arboles$Specie),'Class']
+#arboles$Specie_code = species[as.character(arboles$Specie),'Specie_code']
+
+#EXporting database of only trees found in both years to estimate growth
+write.csv(arboles[!is.na(arboles$DBH.02.12),] , file = 'Data/arboles_2002-2014_growth.csv', row.names = FALSE)
+#EXporting database of all trees, now with data prepared (Same trees as arboles_2002-2014.xls)
+write.csv(arboles , file = 'Data/arboles_2002-2014_prepared.csv', row.names = FALSE)
+```
+
+#### By Plot statistics table export
+```{r Plot Statistics, message=FALSE, warning=FALSE}
+require(dplyr)
+
+# Getting working directory
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+by_plot <- dplyr::group_by(arboles, Plot.ID)
+by_plot_results = summarise (by_plot,
+                             Land.Use.Description = unique(Land.Use.Description),
+                             Land.Use.Description_grouped = unique(Land.Use.Description_grouped),
+                             GrndCvrClass  = unique(GrndCvrClass), 
+                             num_species = length(unique(Specie)),
+                             num_trees_2002 = length(Specie) - sum(In.growth.2014, na.rm = TRUE),
+                             num_trees_2014 = length(Specie) - sum(Removed.2014, na.rm = TRUE),
+                             removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),
+                             ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE),
+                             BA2002 = sum(BA2002, na.rm = TRUE),
+                             BA2014 = sum(BA2014, na.rm = TRUE),
+                             BA.02.14 = sum(BA.02.14, na.rm = TRUE),
+                             Biomass.2002 = sum(Biomass.2002, na.rm = TRUE),
+                             Biomass.2014 = sum(Biomass.2014, na.rm = TRUE),
+                             Biomass.02.14 = sum(Biomass.02.14, na.rm = TRUE)
+                             )
+
+
+#plots ya tiene las columnas aquÃ? calculadas. 
+#Hay que eliminarlas antes si se quiere exportar de nuevo
+#Adding add these results to Plots dataframe and export it for later analysis
+Plots = merge(Plots, by_plot_results, by = 'Plot.ID',
+              all = TRUE)     #Even if there is no matching, export the line
+#Export Plots dataframe to speed later analysis
+
+#Convert NA to zeroes for later analysos
+Plots$Land.Use.Description[is.na(Plots$Land.Use.Description)] <- 0
+Plots$Land.Use.Description_grouped[is.na(Plots$Land.Use.Description_grouped)] <- 0
+Plots$GrndCvrClass[is.na(Plots$GrndCvrClass)] <- 0
+Plots$num_species[is.na(Plots$num_species)] <- 0
+Plots$num_trees_2002[is.na(Plots$num_trees_2002)] <- 0
+Plots$num_trees_2014[is.na(Plots$num_trees_2014)] <- 0
+Plots$removed_trees.2014[is.na(Plots$removed_trees.2014)] <- 0
+Plots$ingrowth_trees.2014[is.na(Plots$ingrowth_trees.2014)] <- 0
+Plots$BA2002[is.na(Plots$BA2002)] <- 0
+Plots$BA2014[is.na(Plots$BA2014)] <- 0
+Plots$Biomass.2002[is.na(Plots$Biomass.2002)] <- 0
+Plots$BA.02.14[is.na(Plots$BA.02.14)] <- 0
+Plots$Biomass.02.14[is.na(Plots$Biomass.02.14)] <- 0
+Plots$Biomass.2014[is.na(Plots$Biomass.2014)] <- 0
+
+#Export plots analysis to csv file
+write.csv(Plots, file = 'Data/Plots.csv', row.names = FALSE)
+```
