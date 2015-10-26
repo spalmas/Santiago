@@ -1,0 +1,153 @@
+---
+title: "Analysis of Santiago Urban Tree Spatial Correlation of BA and Biomass Change"
+author: "spp"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+Script to find correlation between basal area, biomass change on space
+
+####Get Data
+```{r Reading Data, eval=FALSE}
+#Load Packages
+require(geoR)
+
+# #Maybe a code for switching between linux and windoews
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+#File of Pllots locatins and variables
+Plots <- read.csv("Data/Plots.csv")
+Plots <- Plots[-c(183),] #deleting NA row
+
+#Get databases of only
+BAchange <- Plots[,c("GPS.Coordinate..X.","GPS.Coordinate..Y.","BA.02.14")]
+#Biomass.2014  Biomass.02.14
+colnames(BAchange) <- c('x','y', 'z')
+
+
+#formats the text file for geostatistical analysis in geoR
+#xyz columns
+geo.santiago <- as.geodata(obj = Plots ,
+                           coords.col = c(4,5),
+                           data.col = c(50,52,53),
+                           data.names = c('BA.02.14',
+                                          'Biomass.2014',
+                                          'Biomass.02.14'))  
+#Plot points in a map
+#points.geodata(geo.santiago)
+
+#calculate a distance matrix and determine the maximum distance between patches
+#BAdistmat2=as.matrix(dist(cbind(BAchange$x,BAchange$y)))
+distmat=as.matrix(dist(cbind(geo.santiago$coords[,1],geo.santiago$coords[,2])))
+
+#Empirical semivariograms can be calculated with geoR with the function variog. Type 
+emp.semivar<-variog(geo.santiago,max.dist=max(distmat, na.rm = TRUE))
+plot(emp.semivar)  
+
+
+#Let?s contrast this empirircal semivariogram with correlograms. 
+#geoR does not do correlograms, so let?s use the spdep and pgirmess
+library(spdep)
+library(pgirmess)
+
+#makes an object needed for pgirmess 
+coords<-cbind(Plots["GPS.Coordinate..X."], Plots["GPS.Coordinate..Y."])
+class(coords)
+#OSBScoords<-cbind(BAchange$x, OBAchange$y)
+
+#this is from pgirmess, but it calls spdep, z is the response variable
+AB.morancor<-correlog(coords, Plots$BA.02.14,method="Moran") 
+Bio.morancor<-correlog(coords, Plots$Biomass.02.14,method="Moran") 
+#OSBSmorancor<-correlog(OSBScoords, OSBSveg$z,method="Moran") 
+
+#provides the p values for each distance class
+AB.morancor
+Bio.morancor
+
+#provides correlogram plot, with significant distances in red
+plot(AB.morancor) 
+plot(Bio.morancor) 
+```
+
+
+
+####With Confidence intervals
+```{r Confidence Intervals, eval=FALSE}
+################
+#Trying to convert to lat long
+library(proj4)
+proj4string <- "+proj=utm +zone=19 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs "
+
+# Transformed data
+pj <- project(coords, proj4string, inverse=TRUE)
+latlong <- as.matrix(data.frame(lat=pj$y, lon=pj$x))
+
+###########################################################################
+###########################################################################
+#EXTRA: correlograms in spdep (more flexible and useful for binary data)
+###########################################################################
+###########################################################################
+
+#make a matrix with coordinates, needed for spdep
+spdep.dist.mat<-as.matrix(coords)
+
+#For spdep, we can only calculate Moran's I for one lag distance at a time. 
+#To automate this process, I have provided a 'for loop' for you 
+#(similar to the batch processing we did last week), but first we need to build 
+#an array for storing the output for different distances :
+moran.results<-array(dim=c(20,5),dimnames=list(1:20,est=c("Dist", 
+"Morans.i","Null.lcl", "Null.ucl", "Pvalue")))
+
+#Now, here is the for loop, which calculates Moran's I and provides 
+#a 95% null envelope for 20 lag distances, based on Monte Carlo (randomization) techniques:
+
+for (i in 1:20){
+  d.start<-i-1
+  d.end<-i
+  
+  #need to make a neighbor list for spdep
+  
+  neigh <- dnearneigh(x= latlong, d1=d.start, d.end) 
+  
+  #with the neighbor list, must assign a weighting scheme
+  #if this doesn't work on your computer, delete 'longlat=F'
+  wts <- nb2listw(neighbours=neigh, style='B', zero.policy=T)
+  
+  #now calculate Moran's I for this distance and use Monte #Carlo methods to estimate a 95% null envelope
+  
+  mor.i <- moran.mc(x= Plots$BA.02.14, listw=wts, nsim=999, alternative="greater", zero.policy=T)  
+  
+  #note alternative is for P-value, so only 'significant' if #positive autocorrelation
+  
+  moran.results[i, 1]<-d.end 
+  moran.results[i, 2]<-mor.i$statistic  #observed moran's i
+  moran.results[i, 3]<-quantile(mor.i$res, probs = 0.025,na.rm = TRUE) #null envelope	
+  
+  moran.results[i, 4]<-quantile(mor.i$res, probs = 0.975,na.rm = TRUE) #null envelope
+  moran.results[i, 5]<-mor.i$p.value									#p-value for moran's i at that distance category
+}
+
+
+#To see the output, type:
+
+moran.results 
+
+#We can then produce a correlogram using the following code:
+
+moran.dist<-moran.results[ ,1]
+moran.i<-moran.results[ ,2]
+null.lcl<-moran.results[ ,3]
+null.ucl<-moran.results[ ,4]
+
+plot(y=moran.i,x=moran.dist, xlab="Lag Distance", ylab="Moran's I", ylim=c(-1,1))
+lines(moran.dist, null.lcl)  #add the null lcl to the plot
+lines(moran.dist, null.ucl)	#add the null ucl to the plot
+
+
+
+```
+
+

@@ -1,0 +1,211 @@
+---
+title: "Analysis of Santiago Urban Individual Tree Growth"
+author: "spp"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+Script to fit DAP, BA and Biomass growth model per species or classification of species
+The arboles_ growth.xls file is generated from Santiago_PrepareDataframes.Rmd
+
+#### Reading Data
+```{r Reading data and , eval=TRUE, message=FALSE}
+require(dplyr)
+require(lme4)
+require(multcomp)
+
+#Set working directory
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+#Reading Data
+arboles_growth <- read.csv("Data/arboles_2002-2014_growth.csv")
+```
+
+#### Tree growth statistical analysis by species
+```{r Statistics by species, eval=TRUE, message=FALSE}
+
+#Set working directory
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+## DEfine species to analyze. I picked the 5 with most individuals
+
+species = c("Acer negundo" , 
+            "Citrus limon" , 
+            "Prunus amygdalus" , 
+            "Prunus ceracifera" , 
+            "Robinia pseudoacacia" )
+
+arboles_growth_subset = subset(x = arboles_growth, subset = arboles_growth$Specie %in% species)
+arboles_growth_subset$Specie = factor(arboles_growth_subset$Specie)  #elminates nonexisting species in the factor list. Helps later
+                                 
+#======================================================================================
+# DBH Growth vs tree type
+aovGrowthDBH_species  = aov(DBH.02.12 ~ Specie , data=arboles_growth_subset)
+anova(aovGrowthDBH_species)
+
+#======================================================================================
+# BA Growth vs tree type
+aovGrowthBA_species  = aov(BA.02.12 ~ Specie , data=arboles_growth_subset)
+anova(aovGrowthBA_species)
+
+#======================================================================================
+# Biomass Growth vs tree type
+aovGrowthBiomass_species  = aov(Biomass.02.14 ~ Specie , data=arboles_growth_subset)
+anova(aovGrowthBiomass_species)
+```
+
+```{r Summary Means per species, message=FALSE, echo=FALSE}
+#Code to get summary means for BA and BIomass growth per species
+#Dataframe preparation
+type_table = data.frame(matrix(NA, nrow = 5, ncol = 7))
+rownames(type_table) = species
+colnames(type_table) = c('n', 
+                         'D.DBH.Mean', 
+                         'D.DBH.SE', 
+                         'D.BA.Mean',
+                         'D.BA.SE', 
+                         'D.Bio.Mean',
+                         'D.Bio.SE')
+
+se <- function(x) sqrt(var(x)/length(x))
+
+
+type_table ['n'] = as.vector(table (arboles_growth_subset$Specie))
+type_table ['D.DBH.Mean'] = round(aggregate(arboles_growth_subset$DBH.02.12, by=list(arboles_growth_subset$Specie), FUN= mean)$x, digits = 2)
+type_table ['D.DBH.SE'] = round(aggregate(arboles_growth_subset$DBH.02.12, by=list(arboles_growth_subset$Specie), FUN=se)$x, digits = 2)
+type_table ['D.BA.Mean'] = round(aggregate(arboles_growth_subset$BA.02.12, by=list(arboles_growth_subset$Specie), FUN=mean)$x, digits = 2)
+type_table ['D.BA.SE'] = round(aggregate(arboles_growth_subset$BA.02.12, by=list(arboles_growth_subset$Specie), FUN=se)$x, digits = 2)
+type_table ['D.Bio.Mean'] = round(aggregate(arboles_growth_subset$Biomass.02.14, by=list(arboles_growth_subset$Specie), FUN=mean)$x, digits = 2)
+type_table ['D.Bio.SE'] = round(aggregate(arboles_growth_subset$Biomass.02.14, by=list(arboles_growth_subset$Specie), FUN=se)$x, digits = 2)
+
+type_table 
+```
+
+#### Tree growth plots by species
+```{r Plots by species, eval=TRUE, message=FALSE, echo=FALSE}
+par(mfrow = c(1,3))
+plot(cld(glht(aovGrowthDBH_species,linfct=mcp(Specie='Tukey'))),
+     main = 'DBH Growth per species', las = 3)
+plot(cld(glht(aovGrowthBA_species,linfct=mcp(Specie='Tukey'))),
+     main = 'Basal Area Growth per species', las = 3)
+plot(cld(glht(aovGrowthBiomass_species,linfct=mcp(Specie='Tukey'))),
+     main = 'Biomasa Growth per species', las = 3)
+
+
+#======================================================================================
+#Export plot
+png("Plots/GrowthDBH-species.png")
+plot(cld(glht(aovGrowthDBH_species,linfct=mcp(Specie='Tukey'))), las = 3)
+dev.off()
+
+#======================================================================================
+#Export plot
+png("Plots/GrowthBA_species.png")
+plot(cld(glht(aovGrowthBA_species,linfct=mcp(Specie='Tukey'))), las = 3)
+dev.off()
+
+#======================================================================================
+#Export plot
+png("Plots/GrowthBiomass_species.png")
+plot(cld(glht(aovGrowthBiomass_species,linfct=mcp(Specie='Tukey'))), las = 3)
+dev.off()
+
+```
+
+
+
+
+#### Tree growth statistical analysis by classes
+```{r Statistics by classes, eval=TRUE, message=FALSE}
+
+#Set working directory
+if (Sys.info()['sysname'] == 'Windows'){
+  setwd("C:/Users/Sebastian/Google Drive/Urban")
+} else if (Sys.info()['sysname'] == 'Linux'){
+  setwd("~/Google Drive/Urban")
+}
+
+#======================================================================================
+# DBH Growth vs tree type
+aovGrowthDBH_class  = aov(DBH.02.12 ~ Class , data=arboles_growth)
+anova(aovGrowthDBH_class)
+
+#======================================================================================
+# BA Growth vs tree type
+aovGrowthBA_class  = aov(BA.02.12 ~ Class , data=arboles_growth)
+anova(aovGrowthBA_class)
+
+#======================================================================================
+# Biomass Growth vs tree type
+aovGrowthBiomass_class  = aov(Biomass.02.14 ~ Class , data=arboles_growth)
+anova(aovGrowthBiomass_class)
+```
+
+```{r Summary Means per class, eval=TRUE, message=FALSE, echo=FALSE}
+#Code to get summary means for BA and BIomass growth per class
+#Dataframe preparation
+type_table = data.frame(matrix(NA, nrow = 5, ncol = 7))
+rownames(type_table) = c('Broadleaf-Deciduous',
+                         'Broadleaf-Evergreen',
+                         'Conifer',
+                         'Palm',
+                         'Shrub')
+colnames(type_table) = c('n', 
+                         'D.DBH.Mean', 
+                         'D.DBH.SE', 
+                         'D.BA.Mean',
+                         'D.BA.SE', 
+                         'D.Bio.Mean',
+                         'D.Bio.SE')
+
+se <- function(x) sqrt(var(x)/length(x))
+
+type_table ['n'] = as.vector(table (arboles_growth$Class)) # n per each tpye
+type_table ['D.DBH.Mean'] = round(aggregate(arboles_growth$DBH.02.12, by=list(arboles_growth$Class), FUN=mean)$x, digits = 2)
+type_table ['D.DBH.SE'] = round(aggregate(arboles_growth$DBH.02.12, by=list(arboles_growth$Class), FUN=se)$x, digits = 2)
+type_table ['D.BA.Mean'] = round(aggregate(arboles_growth$BA.02.12, by=list(arboles_growth$Class), FUN=mean)$x, digits = 2)
+type_table ['D.BA.SE'] = round(aggregate(arboles_growth$BA.02.12, by=list(arboles_growth$Class), FUN=se)$x, digits = 2)
+type_table ['D.Bio.Mean'] = round(aggregate(arboles_growth$Biomass.02.14, by=list(arboles_growth$Class), FUN=mean)$x, digits = 2)
+type_table ['D.Bio.SE'] = round(aggregate(arboles_growth$Biomass.02.14, by=list(arboles_growth$Class), FUN=se)$x, digits = 2)
+
+type_table 
+
+```
+#### Tree growth plots by class
+```{r Plots by class, eval=TRUE, message=FALSE, echo=FALSE}
+par(mfrow = c(1,3))
+plot(cld(glht(aovGrowthDBH_class,linfct=mcp(Class='Tukey'))),
+     main = 'DBH Growth per species Class', las = 3)
+plot(cld(glht(aovGrowthBA_class,linfct=mcp(Class='Tukey'))),
+     main = 'Basal Area Growth per species Class', las = 3)
+plot(cld(glht(aovGrowthBiomass_class,linfct=mcp(Class='Tukey'))),
+     main = 'Biomasa Growth per species Class', las = 3)
+
+
+#=====================================================================================
+#Export plot
+png("Plots/GrowthDBH-Class.png")
+plot(cld(glht(aovGrowthDBH_class,linfct=mcp(Class='Tukey'))), las = 3)
+dev.off()
+
+#=====================================================================================
+#Export plot
+png("Plots/GrowthBA_Class.png")
+plot(cld(glht(aovGrowthBA_class,linfct=mcp(Class='Tukey'))), las = 3)
+dev.off()
+
+#======================================================================================#Export plot
+png("Plots/GrowthBiomass_Class.png")
+plot(cld(glht(aovGrowthBiomass_class,linfct=mcp(Class='Tukey'))), las = 3)
+dev.off()
+```
+
+
+
