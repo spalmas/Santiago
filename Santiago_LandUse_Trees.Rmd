@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ---
 title: "Analysis of Santiago Urban Tree by Land Use"
 author: "spp"
@@ -7,7 +6,7 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 
 Script to fit Biomass model from Urban trees in Santiago.
 
-## reding data
+### Reading data
 ```{r Reading Results Data, eval=TRUE, message=FALSE, warnings = FALSE}
 require(ggplot2)
 require(gplots)
@@ -22,16 +21,88 @@ if (Sys.info()['sysname'] == 'Windows'){
 
 #Reading Data
 Plots <- read.csv("Data/Plots.csv")
+
+
+#removing lo barnechea and La Florida crazy points
+crazypoints = c(10, 192)
+Plots <- Plots[!Plots$Plot.ID %in% crazypoints ,]
+
+```
+
+### Correlation between BA and Biomass with estrato
+```{r Estrato analysis, eval=TRUE, message=FALSE, warnings = FALSE, echo = FALSE}
+#Getting list of estrato points 
+table(Plots$Estrato)
+
+#======================================================================================
+# Anova of BA change, biomass change by estrato
+#with log of BA and Bio
+
+# 2012-2014 Change in Basal Area
+fitBA_change <- aov(BA.02.14 ~ Estrato , data=Plots )
+anova(fitBA_change)          #NOTHING SIGNIFICANT
+
+# 2012-2014 Change in log(Basal Area)
+fit_log_BA_change <- aov(log(BA.02.14 + 1) ~ Estrato , data=Plots )
+anova(fit_log_BA_change)          #NOTHING SIGNIFICANT
+
+# 2012-2014 Change in Biomass
+fitBiomass_change <- aov(Biomass.02.14 ~ Estrato, data=Plots )
+anova(fitBiomass_change)          #NOTHING SIGNIFICANT
+
+# 2012-2014 Change in log(Biomass)
+fit_log_Biomass_change <- aov(log(Biomass.02.14 + 1) ~ Estrato , data=Plots )
+anova(fit_log_Biomass_change)          #SOMETHING SIGNIFICANT
+
+plot(cld(glht(fit_log_Biomass_change,linfct=mcp(Estrato='Tukey'))), las = 3)
+
+
 ```
 
 
-## Correlation between BA and Biomass with estrato, comuna, lat/long
+### Correlation between BA and Biomass wmadre ith  comuna, lat/long
 ```{r Comuna analysis, eval=TRUE, message=FALSE, warnings = FALSE, echo = FALSE}
+#Only analyze comunas with 3 or more points
+#Getting list of comunas with 3 or more points
+comunas_with3points = array(sort(unique(Plots$NOM_COM))[array(table(Plots$NOM_COM) >= 3)])
 
+#subsetting the table to those comunas
+Plots_comunas_subset <- Plots[Plots$NOM_COM %in% comunas_with3points,]
+
+#Eliminating Huachuraba
+Plots_comunas_subset_b <- Plots_comunas_subset[!Plots_comunas_subset$NOM_COM == "Huechuraba" ,]
+
+unique(Plots_comunas_subset$NOM_COM)
+#======================================================================================
+# Anova of BA change, biomass change by comuna
+#with log of BA and Bio
+
+# 2012-2014 Change in Basal Area
+fitBA_change <- aov(BA.02.14 ~ NOM_COM , data=Plots_comunas_subset )
+anova(fitBA_change)          #NOTHING SIGNIFICANT
+
+# 2012-2014 Change in log(Basal Area)
+fit_log_BA_change <- aov(log(BA.02.14 + 1) ~ NOM_COM , data=Plots_comunas_subset )
+anova(fit_log_BA_change)          #NOTHING SIGNIFICANT
+
+# 2012-2014 Change in Biomass
+fitBiomass_change <- aov(Biomass.02.14 ~ NOM_COM , data=Plots_comunas_subset )
+fitBiomass_change_b <- aov(Biomass.02.14 ~ NOM_COM , data=Plots_comunas_subset_b )
+anova(fitBiomass_change)          #SOMETHING SIGNIFICANT
+anova(fitBiomass_change_b)          #SOMETHING SIGNIFICANT
+
+plot(cld(glht(fitBiomass_change,linfct=mcp(NOM_COM='Tukey'))),
+     main = 'Change in Biomass per Comuna', las = 3)
+plot(cld(glht(fitBiomass_change_b,linfct=mcp(NOM_COM='Tukey'))),
+     main = 'Change in Biomass per Comuna', las = 3)
+
+# 2012-2014 Change in log(Biomass)
+fit_log_Biomass_change <- aov(log(Biomass.02.14 + 1) ~ NOM_COM , data=Plots_comunas_subset )
+anova(fit_log_Biomass_change)          #NOTHING SIGNIFICANT
 ```
 
 
-## By LandUse statistical analysis and plots
+### By LandUse statistical analysis and plots
 ```{r by Land Use analysis, eval=TRUE, message=FALSE, warnings = FALSE}
 #print number of plots per land use (After combining the many land usesws)
 table(Plots$Land.Use.Description_grouped)
@@ -92,7 +163,7 @@ anova(fit.resp)          #NOTHING SIGNIFICANT
 
 
 
-## Correlation between BA and Biomass with goundcover percentages
+### Correlation between BA and Biomass with goundcover percentages
 ```{r correlation with Groundcover, eval=TRUE, message=FALSE, warnings = FALSE, echo = FALSE}
 #BA and Biomass 
 #Dataframe preparation
@@ -123,116 +194,4 @@ for (response in colnames(corr_table)){
 corr_table
 ```
 
-=======
----
-title: "Analysis of Santiago Urban Tree by Land Use"
-author: "spp"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
----
 
-Script to fit Biomass model from Urban trees in Santiago.
-
-
-
-## By Plots statistical analysis and plots
-```{r Reading Results Data, eval=TRUE, message=FALSE, warnings = FALSE}
-require(ggplot2)
-require(gplots)
-require(multcomp)
-
-#Set working directory
-if (Sys.info()['sysname'] == 'Windows'){
-  setwd("C:/Users/Sebastian/Google Drive/Urban")
-} else if (Sys.info()['sysname'] == 'Linux'){
-  setwd("~/Google Drive/Urban")
-}
-
-#Reading Data
-Plots <- read.csv("Data/Plots.csv")
-
-#print number of plots per land use (After combining the many land usesws)
-table(Plots$Land.Use.Description_grouped)
-
-#======================================================================================
-# Anova of BA change, biomass change by land use (R, C/I, G, A, T)
-
-# 2012-2014 Change in Basal Area
-fitBA_change <- aov(BA.02.14 ~ Land.Use.Description_grouped , data=Plots)
-anova(fitBA_change)          #NOTHING SIGNIFICANT
-
-# 2012-2014 Change in log(Basal Area)
-fit_log_BA_change <- aov(log(BA.02.14 + 1) ~ Land.Use.Description_grouped , data=Plots)
-anova(fit_log_BA_change)          #NOTHING SIGNIFICANT
-
-# 2012-2014 Change in Biomass
-fitBiomass_change <- aov(Biomass.02.14 ~ Land.Use.Description_grouped , data=Plots)
-anova(fitBiomass_change)          #NOTHING SIGNIFICANT
-
-# 2012-2014 Change in log(Biomass)
-fit_log_Biomass_change <- aov(log(Biomass.02.14 + 1) ~ Land.Use.Description_grouped , data=Plots)
-anova(fit_log_Biomass_change)          #NOTHING SIGNIFICANT
-
-#======================================================================================
-# Anova of BA, biomass, number of species, mortality
-# by grouped land use Classification (R, C/I, G, A, T)
-
-# 2002 Basal Area
-fitBA.2002  = aov(BA2002 ~ Land.Use.Description_grouped , data=Plots)
-anova(fitBA.2002)          #NOTHING SIGNIFICANT
-
-# 2014 Basal Area
-fitBA.2014  = aov(BA2014 ~ Land.Use.Description_grouped , data=Plots)
-anova(fitBA.2014)          #NOTHING SIGNIFICANT
-
-# 2002 Biomass
-fitBiomass.2002  = aov(Biomass.2002 ~ Land.Use.Description_grouped , data=Plots)
-anova(fitBiomass.2002)          #NOTHING SIGNIFICANT
-
-# 2014 Basal Area
-fitBiomass.2014  = aov(Biomass.2014 ~ Land.Use.Description_grouped , data=Plots)
-anova(fitBiomass.2014)          #NOTHING SIGNIFICANT
-
-# Total number of species
-fitSpecies  <- aov(num_species ~ Land.Use.Description_grouped , data=Plots)
-anova(fitSpecies)          #SOMETHING SIGNIFICANT!!!!!!!!!!
-
-# Mortality
-fit.mort  = aov(removed_trees.2014 ~ Land.Use.Description_grouped , data=Plots)
-anova(fit.mort)          #NOTHING SIGNIFICANT
-
-# Resprouting
-fit.resp  = aov(ingrowth_trees.2014 ~ Land.Use.Description_grouped , data=Plots)
-anova(fit.resp)          #NOTHING SIGNIFICANT
-
-#======================================================================================
-#BA and Biomass correlation with Groundcover
-#Dataframe preparation
-corr_table = data.frame(matrix(NA, nrow = 8, ncol = 6))
-rownames(corr_table) = c('Building',
-                         'Cement',
-                         'Bare.soil',
-                         'Tar',
-                         'Herbs',
-                         'Grass',
-                         'Impermeable',
-                         'Permeable' )
-colnames(corr_table) = c('BA2002', 
-                         'BA2014', 
-                         'BA.02.14', 
-                         'Biomass.2002',
-                         'Biomass.2014', 
-                         'Biomass.02.14')
-
-for (response in colnames(corr_table)){
-  #png(paste(factor, '.png'))
-  for (factor in rownames(corr_table)){
-    corr_table[factor,response] = round(cor(Plots[factor], Plots[response], use = 'complete.obs')[1], 
-                                         digits = 3)
-    }
-} 
-
-#Correlation coefficients for land cover percentage and BA, Biomass reponses
-corr_table
-```
-
->>>>>>> 5c4efa2c7ce696bd54de300cccccda4d481dbe6c
