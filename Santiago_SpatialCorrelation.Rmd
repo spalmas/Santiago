@@ -22,6 +22,10 @@ if (Sys.info()['sysname'] == 'Windows'){
 Plots <- read.csv("Data/Plots.csv")
 Plots <- Plots[-c(183),] #deleting NA row
 
+#removing lo barnechea and La Florida crazy points
+crazypoints = c(10, 192)
+Plots <- Plots[!Plots$Plot.ID %in% crazypoints ,]
+
 #Get databases of only
 BAchange <- Plots[,c("GPS.Coordinate..X.","GPS.Coordinate..Y.","BA.02.14")]
 #Biomass.2014  Biomass.02.14
