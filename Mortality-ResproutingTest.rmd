@@ -15,45 +15,41 @@ if (Sys.info()['sysname'] == 'Windows'){
 }
 
 #Reading Data
-arboles <- read.csv("Data/arboles_all.csv")
+arboles <- read.csv("Data/arboles_2002-2014_prepared.csv")
 #changing NA to 0
 arboles$In.growth.2014[is.na(arboles$In.growth.2014)] <- 0
 arboles$Removed.2014[is.na(arboles$Removed.2014)] <- 0
+head(arboles)
+
+#per hectare correction. Plots are 400 m2 and there are 135 plots
+correction <- 25/length(unique(arboles$Plot.ID))
+
 
 #create a table summarizing results 
 arboles <- dplyr::group_by(.data = arboles, Class)
 arboles_results = summarize (arboles,
-                             n  = length(Removed.2014),
+                             n  = length(Removed.2014), #Total number of trees both periods
                              removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),
-                             ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE)
-)
+                             ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE),
+                             BA = correction * sum(pi * (DBH2014/100/2)^2, na.rm = TRUE))
 arboles_results
 
+#
+
 #======================================================================================
-# Proportion test per tree type
+# Proportion test for mortality and ingrowth per tree type
 prop.test(x = arboles_results$removed_trees.2014, n = arboles_results$n)
 prop.test(x = arboles_results$ingrowth_trees.2014, n = arboles_results$n)
 
+se_prop <- function(p, n){sqrt(p*(1-p)/n)} 
+arboles_results$p_removed <- round(100 * arboles_results$removed_trees.2014 / arboles_results$n / 12, 2)
+arboles_results$p_removed_SE <- round(se_prop(p = arboles_results$p_removed, n = arboles_results$n), 4)
+arboles_results$p_ingrowth <- round(100 * arboles_results$ingrowth_trees.2014 / arboles_results$n / 12, 2)
+arboles_results$p_ingrowth_SE <- round(se_prop(p = arboles_results$p_ingrowth, n = arboles_results$n), 4)
 
-#======================================================================================
-#Try by species
-#create a table summarizing results 
-arboles <- dplyr::group_by(.data = arboles, Specie_code)
-arboles_results_spp = summarize (arboles,
-                                 n  = length(Removed.2014), #total trees that have existed
-                                 removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),
-                                 ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE)
-)
+arboles_results$removed_trees.2014 <- NULL
+arboles_results$ingrowth_trees.2014 <- NULL
 
-#subset to only trees with more than 10 individuals 
-arboles_results_spp = arboles_results_spp[arboles_results_spp$n > 10,]
-
-#======================================================================================
-
-# Proportion test per tree type
-prop.test(x = arboles_results_spp$removed_trees.2014, n = arboles_results_spp$n)
-prop.test(x = arboles_results_spp$ingrowth_trees.2014, n = arboles_results_spp$n)
-
-
+arboles_results
 
 ```

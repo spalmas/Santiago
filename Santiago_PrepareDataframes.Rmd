@@ -36,11 +36,14 @@ rownames(Plots) <- Plots$Plot.ID
 LandUseID <- read.csv("Data/PlotLandUSe_Code.csv")
 rownames(LandUseID ) <- LandUseID$Land.Use.ID
 
+#Plot data for 2002
+Plots.02 <- read.xls(xls="Data/Stgoplts_2002.xls", sheet = 'Sheet1' )
+
 #Description of shrubs in each plot. 
 #Shrubs <- read.xls(xls="Datby_tailnum <- group_by(flights, tailnum)by_tailnum <- group_by(flights, tailnum)a/Shrubs.xls", sheet = 'Shrubs')
 
 #Percent of tree, shrubs and plantables in each plot in 2014
-#TreeShrbCvr <- read.xls(xls="Data/TreeShrbCvr.xls", sheet = 'Subplots')
+TreeShrbCvr <- read.xls(xls="Data/TreeShrbCvr.xls", sheet = 'Subplots')
 
 #detailed measurements of each tree in 2014 plots. Height to Crown. Tree height, % shrub below
 #TreeBiom <- read.xls(xls="Data/TreeBiometrics.xls", sheet = 'Trees')
@@ -113,8 +116,8 @@ arboles$DBH.02.12 = (arboles$DBH2014 - arboles$DBH2002) / arboles$Days.between.s
 arboles$DBH.02.12[arboles$In.growth.2014==1]  = NA 
 
 #Estimate basal area in square meters
-arboles$BA2002 = (arboles$DBH2002/2)^2 * pi /10000 
-arboles$BA2014 = (arboles$DBH2014/2)^2 * pi /10000
+arboles$BA2002 = (arboles$DBH2002/100/2)^2 * pi
+arboles$BA2014 = (arboles$DBH2014/100/2)^2 * pi
 #The change in basal area adds the basal area of the recruited trees.
 #considering a linear basal area growht (not estimated with adjusted dbh)
 arboles$BA2002[arboles$In.growth.2014==1]  = 0
@@ -158,29 +161,47 @@ if (Sys.info()['sysname'] == 'Windows'){
 
 by_plot <- dplyr::group_by(arboles, Plot.ID)
 by_plot_results = summarise (by_plot,
-                             Land.Use.Description = unique(Land.Use.Description),
-                             Land.Use.Description_grouped = unique(Land.Use.Description_grouped),
-                             GrndCvrClass  = unique(GrndCvrClass), 
-                             num_species = length(unique(Specie)),
-                             num_trees_2002 = length(Specie) - sum(In.growth.2014, na.rm = TRUE),
-                             num_trees_2014 = length(Specie) - sum(Removed.2014, na.rm = TRUE),
-                             removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),
-                             ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE),
-                             BA2002 = sum(BA2002, na.rm = TRUE),
-                             BA2014 = sum(BA2014, na.rm = TRUE),
-                             BA.02.14 = sum(BA.02.14, na.rm = TRUE),
-                             Biomass.2002 = sum(Biomass.2002, na.rm = TRUE),
-                             Biomass.2014 = sum(Biomass.2014, na.rm = TRUE),
-                             Biomass.02.14 = sum(Biomass.02.14, na.rm = TRUE)
+                             GrndCvrClass  = unique(GrndCvrClass),   #the ground cover class of the parcela
+                             num_species = length(unique(Specie)),   #the number of unique species in the parcela
+                             num_trees_2002 = length(Specie) - sum(In.growth.2014, na.rm = TRUE),   #the number of trees found in 2002
+                             num_trees_2014 = length(Specie) - sum(Removed.2014, na.rm = TRUE),    #the number of trees found in 2014
+                             removed_trees.2014 = sum(Removed.2014, na.rm = TRUE),     #the number of deaths from 2002 to 2014
+                             ingrowth_trees.2014 = sum(In.growth.2014, na.rm = TRUE),    #the number of new ntrees appeared in 2014
+                             #Biomass is also changed to per hectare bases by multiplying by 25 the 400 square meter plots
+                             BA2002 = sum(BA2002, na.rm = TRUE)*25,        #Total basal area in 2002
+                             BA2014 = sum(BA2014, na.rm = TRUE)*25,        #Total Basal area in 2014
+                             BA.02.14 = sum(BA.02.14, na.rm = TRUE)*25,    #change of basal area from 2002-2014
+                             #biomass is *25 because these are 400 m2 plots and we need to convert to 10000 for per hectare values
+                             #/10000 because it is easier to see in megagrams of carbon
+                             Biomass.2002 = sum(Biomass.2002, na.rm = TRUE)*25/1000,    #Total biomass in 2002
+                             Biomass.2014 = sum(Biomass.2014, na.rm = TRUE)*25/1000,    #Total Biomass area in 2014
+                             Biomass.02.14 = sum(Biomass.02.14, na.rm = TRUE)*25/1000    #change of biomass from 2002-2014
                              )
 
 
-#plots ya tiene las columnas aquÃ? calculadas. 
+#plots ya tiene las columnas aqui? calculadas. 
 #Hay que eliminarlas antes si se quiere exportar de nuevo
-#Adding add these results to Plots dataframe and export it for later analysis
+#Adding add these results to the original Plots dataframe and export it for later analysis
 Plots = merge(Plots, by_plot_results, by = 'Plot.ID',
               all = TRUE)     #Even if there is no matching, export the line
 #Export Plots dataframe to speed later analysis
+
+#--------------Adding Tree % Cover to database
+#2002 Data
+Plots.02.order <- match(Plots$Plot.ID, Plots.02$PLOT.I.D.) #Getting positions of the PlotsID in the Plots.02 table
+Plots['TreeCover02'] <- Plots.02$X.TREE2[Plots.02.order]
+
+TreeShrbCvr.order <- match(Plots$Plot.ID, TreeShrbCvr$PlotID)
+Plots['TreeCover14'] <- TreeShrbCvr$PercentTreeCover[TreeShrbCvr.order]
+
+#Creating a column of the difference 2014-2002
+Plots['TreeCover.02.14'] <- Plots['TreeCover14']  - Plots['TreeCover02']
+
+#------Adding Land.Use.Description and Land.Use.Description and Land.Use.Description_grouped
+Plots$Land.Use.Description = LandUseID[as.character(Plots$Land.Use.ID),'LandUseAbbreviation']
+Plots$Land.Use.Description_grouped = LandUseID[as.character(Plots$Land.Use.ID),'LandUseAbbreviation_grouped']
+#arboles$GrndCvrClass = Plots[as.character(arboles$Land.Use.ID),'Perm_degree']
+
 
 #Convert NA to zeroes for later analysos
 Plots$Land.Use.Description[is.na(Plots$Land.Use.Description)] <- 0
@@ -197,6 +218,13 @@ Plots$Biomass.2002[is.na(Plots$Biomass.2002)] <- 0
 Plots$BA.02.14[is.na(Plots$BA.02.14)] <- 0
 Plots$Biomass.02.14[is.na(Plots$Biomass.02.14)] <- 0
 Plots$Biomass.2014[is.na(Plots$Biomass.2014)] <- 0
+
+#Having a column og log biomass
+Plots['logBiomass.2014'] <- log(Plots$Biomass.2014)
+
+#Changing the Inf value of the log to  NA
+Plots$logBiomass.2014[is.infinite(Plots$logBiomass.2014)] <- NA   #Changing Infinity values of log Biomass to NA
+
 
 #Export plots analysis to csv file
 write.csv(Plots, file = 'Data/Plots.csv', row.names = FALSE)

@@ -22,59 +22,160 @@ if (Sys.info()['sysname'] == 'Windows'){
 #Reading Data
 Plots <- read.csv("Data/Plots.csv")
 
-
-#removing lo barnechea and La Florida crazy points
+#removing lo barnechea and La Florida outlier points
 crazypoints = c(10, 192)
 Plots <- Plots[!Plots$Plot.ID %in% crazypoints ,]
 
 ```
 
-### Correlation between BA and Biomass with estrato
+### Correlation between BA Biomass, Tree cover and  with estrato
 ```{r Estrato analysis, eval=TRUE, message=FALSE, warnings = FALSE, echo = FALSE}
+
 #Getting list of estrato points 
 table(Plots$Estrato)
 
 #======================================================================================
-# Anova of BA change, biomass change by estrato
-#with log of BA and Bio
+
+# 2014 Biomass
+fitBiomass.2014  <- aov(log(Biomass.2014 + 1 )  ~ Estrato , data=Plots)
+anova(fitBiomass.2014)    
+plot(cld(glht(fitBiomass.2014,linfct=mcp(Estrato='Tukey'))), las = 3)
+
+#=====Anova of BA change, biomass change by estrato with log of BA and Bio
 
 # 2012-2014 Change in Basal Area
-fitBA_change <- aov(BA.02.14 ~ Estrato , data=Plots )
+fitBA_change <- aov(BA.02.14 ~ Estrato , data=Plots)
 anova(fitBA_change)          #NOTHING SIGNIFICANT
 
-# 2012-2014 Change in log(Basal Area)
-fit_log_BA_change <- aov(log(BA.02.14 + 1) ~ Estrato , data=Plots )
-anova(fit_log_BA_change)          #NOTHING SIGNIFICANT
-
 # 2012-2014 Change in Biomass
-fitBiomass_change <- aov(Biomass.02.14 ~ Estrato, data=Plots )
+fitBiomass_change <- aov(Biomass.02.14/12 ~ Estrato, data=Plots )
 anova(fitBiomass_change)          #NOTHING SIGNIFICANT
+#plot(cld(glht(fitBiomass_change,linfct=mcp(Estrato='Tukey'))), las = 3)
 
-# 2012-2014 Change in log(Biomass)
-fit_log_Biomass_change <- aov(log(Biomass.02.14 + 1) ~ Estrato , data=Plots )
-anova(fit_log_Biomass_change)          #SOMETHING SIGNIFICANT
+#=======Tree Cover Percentage 2002 by Estrato
+fit.TreeCover02  <- aov(TreeCover02 ~ Estrato, data = Plots)
+anova(fit.TreeCover02)          #NOTHING SIGNIFICANT
 
-plot(cld(glht(fit_log_Biomass_change,linfct=mcp(Estrato='Tukey'))), las = 3)
+#=======Tree Cover Percentage 2014 by Estrato
+fit.TreeCover14  <- aov(TreeCover14 ~ Estrato, data = Plots)
+anova(fit.TreeCover14)          #SOMETHING SIGNIFICANT!!!!
+plot(cld(glht(fit.TreeCover14,linfct=mcp(Estrato='Tukey'))), las = 3)
 
+#=======Tree Cover Percentage change by Estrato
+fit.TreeCover  <- aov(TreeCover.02.14/12 ~ Estrato, data = Plots)
+anova(fit.TreeCover)          #SOMETHING SIGNIFICANT!!!!
+plot(cld(glht(fit.TreeCover,linfct=mcp(Estrato='Tukey'))), las = 3)
+
+#=======Tree Cover 2002 vs Tree Cover 2014
+t.test(Plots$TreeCover14 - Plots$TreeCover02) 
+
+#======= Mortality proportion
+#getting list of plots with trees present in 2002.
+Plots_withTrees <- Plots[Plots$num_trees_2002 > 0,]
+fit.mort  <- aov(removed_trees.2014/num_trees_2002 ~ Estrato, data = Plots_withTrees)
+anova(fit.mort)          #NOTHING SIGNIFICANT
+
+
+#======================================================================================
+
+# Percentage of pltos that had biomass loss
+sum(Plots$Biomass.02.14 < 0)/nrow(Plots)
+hist(Plots$Biomass.02.14)
 
 ```
 
+```{r Summary variables per estrato, message=FALSE, echo=FALSE, warning=FALSE}
+#Code to get summary means for  BIomass growth per stratum
+#Dataframe preparation
+type_table = data.frame(matrix(nrow = 3))
+rownames(type_table) = c('high', 'low', 'Medium' )
 
-### Correlation between BA and Biomass wmadre ith  comuna, lat/long
+#Standard Error Function
+se <- function(x) sqrt(var(x, na.rm = TRUE)/length(x))
+
+#25 to find values per hectare and not per plot/1000 to get Megagrams of Carbon instead of kg
+type_table ['n'] = as.vector(table (Plots$Estrato)) #Adding number of plots
+type_table <- type_table[-c(1)] #Deleting first column with no data
+
+type_table ['Biomass.2014.Mean'] = round(aggregate(Plots$Biomass.2014, by=list(Plots$Estrato), FUN= mean)$x, digits = 2)
+type_table ['Biomass.2014.SE'] = round(aggregate(Plots$Biomass.2014, by=list(Plots$Estrato), FUN=se)$x, digits = 2)
+
+#The change of biomass in estimated as a mean per year. Therefore we devided by 12
+type_table ['D.Bio.Mean'] = round(aggregate(Plots$Biomass.02.14/12, by=list(Plots$Estrato), FUN=mean)$x, digits = 2)
+type_table ['D.Bio.SE'] = round(aggregate(Plots$Biomass.02.14/12, by=list(Plots$Estrato), FUN=se)$x, digits = 2)
+
+
+#The change of Tree Cover is estimated as a mean per year. Therefore we devided by 12
+Plots$TreeCover.02.14[is.na(Plots$TreeCover.02.14)] <- mean(Plots$TreeCover.02.14, na.rm = TRUE) #For the plots with NA change, we added the mean change. I don't like this
+type_table ['D.TC.Mean'] = round(aggregate(Plots$TreeCover.02.14/12, by=list(Plots$Estrato), FUN=mean)$x, digits = 2)
+type_table ['D.TC.SE'] = round(aggregate(Plots$TreeCover.02.14/12, by=list(Plots$Estrato), FUN=se)$x, digits = 2)
+
+#Rearange to High, Medium, Low and print 
+type_table[c(1,3,2),]
+```
+
+```{r Tree Cover Summary per estrato, message=FALSE, echo=FALSE, warning=FALSE}
+#Code to get summary means for Tree cover 2002, 2014 and 2002-2014 per stratoum
+#Dataframe preparation
+type_table = data.frame(matrix(nrow = 3))
+rownames(type_table) = c('high', 'low', 'Medium' )
+
+#Standard Error Function
+se <- function(x) sqrt(var(x)/length(x))
+
+#Adding number of plots and deleting first column
+type_table ['n'] = as.vector(table (Plots$Estrato)) #Adding number of plots
+type_table <- type_table[-c(1)] #Deleting first column with no data
+
+#Tree Cover 2002
+#Plots$TreeCover02[is.na(Plots$TreeCover02)] <- mean(Plots$TreeCover02, na.rm = TRUE) #NA to mean of everything
+type_table ['TC.02.Mean'] = round(aggregate(Plots$TreeCover02, by=list(Plots$Estrato), FUN=mean,na.action = na.pass, na.rm=TRUE )$x, digits = 2)
+type_table ['TC.02.SE'] = round(aggregate(Plots$TreeCover02, by=list(Plots$Estrato), FUN=se)$x, digits = 2)
+
+#Tree Cover 2014
+#Plots$TreeCover14[is.na(Plots$TreeCover14)] <- mean(Plots$TreeCover14, na.rm = TRUE) #NA to mean of everything
+type_table ['TC.14.Mean'] = round(aggregate(Plots$TreeCover14, by=list(Plots$Estrato), FUN=mean, na.action = na.pass, na.rm=TRUE)$x, digits = 2)
+type_table ['TC.14.SE'] = round(aggregate(Plots$TreeCover14, by=list(Plots$Estrato), FUN=se)$x, digits = 2)
+
+
+#The change of Tree Cover is estimated as a mean per year. Therefore we devided by 12
+#Plots$TreeCover.02.14[is.na(Plots$TreeCover.02.14)] <- mean(Plots$TreeCover.02.14, na.rm = TRUE) #NA to mean of everything
+type_table ['TC.Mean'] = round(aggregate(Plots$TreeCover.02.14, by=list(Plots$Estrato), FUN=mean, na.action = na.pass, na.rm=TRUE)$x, digits = 2)
+type_table ['TC.SE'] = round(aggregate(Plots$TreeCover.02.14, by=list(Plots$Estrato), FUN=se)$x, digits = 2)
+
+#annualized form
+#type_table ['TC.Mean'] = round(aggregate(Plots$TreeCover.02.14/12, by=list(Plots$Estrato), FUN=mean)$x, digits = 2)
+#type_table ['TC.SE'] = round(aggregate(Plots$TreeCover.02.14/12, by=list(Plots$Estrato), FUN=se)$x, digits = 2)
+
+
+#Adding totals
+total.TreeCover <- round(c(sum(table (Plots$Estrato)),
+                           mean(Plots$TreeCover02), se(Plots$TreeCover02),
+                           mean(Plots$TreeCover14), se(Plots$TreeCover14),
+                           mean(Plots$TreeCover.02.14/12), se(Plots$TreeCover.02.14/12)),
+                         digits = 2)
+type_table[4,] <- total.TreeCover #adding row to end of table
+
+#Rearange to High, Medium, Low and print 
+type_table[c(1,3,2,4),]
+```
+
+
+
+
+### Correlation between BA, Biomass, Tree Cover with  comuna, lat/long
 ```{r Comuna analysis, eval=TRUE, message=FALSE, warnings = FALSE, echo = FALSE}
 #Only analyze comunas with 3 or more points
 #Getting list of comunas with 3 or more points
-comunas_with3points = array(sort(unique(Plots$NOM_COM))[array(table(Plots$NOM_COM) >= 3)])
+comunas_with3points <- array(sort(unique(Plots$NOM_COM))[array(table(Plots$NOM_COM) >= 3)])
 
 #subsetting the table to those comunas
 Plots_comunas_subset <- Plots[Plots$NOM_COM %in% comunas_with3points,]
 
-#Eliminating Huachuraba
-Plots_comunas_subset_b <- Plots_comunas_subset[!Plots_comunas_subset$NOM_COM == "Huechuraba" ,]
-
+#printing the comunas subset
 unique(Plots_comunas_subset$NOM_COM)
 #======================================================================================
-# Anova of BA change, biomass change by comuna
+# Anova of BA change, biomass change, tree cover change by comuna
 #with log of BA and Bio
 
 # 2012-2014 Change in Basal Area
@@ -87,18 +188,19 @@ anova(fit_log_BA_change)          #NOTHING SIGNIFICANT
 
 # 2012-2014 Change in Biomass
 fitBiomass_change <- aov(Biomass.02.14 ~ NOM_COM , data=Plots_comunas_subset )
-fitBiomass_change_b <- aov(Biomass.02.14 ~ NOM_COM , data=Plots_comunas_subset_b )
 anova(fitBiomass_change)          #SOMETHING SIGNIFICANT
-anova(fitBiomass_change_b)          #SOMETHING SIGNIFICANT
 
-plot(cld(glht(fitBiomass_change,linfct=mcp(NOM_COM='Tukey'))),
-     main = 'Change in Biomass per Comuna', las = 3)
-plot(cld(glht(fitBiomass_change_b,linfct=mcp(NOM_COM='Tukey'))),
-     main = 'Change in Biomass per Comuna', las = 3)
+# Percent tree cover change
+fitTreeCov_change <- aov(TreeCover.02.14 ~ NOM_COM , data=Plots_comunas_subset )
+anova(fitTreeCov_change)
 
-# 2012-2014 Change in log(Biomass)
-fit_log_Biomass_change <- aov(log(Biomass.02.14 + 1) ~ NOM_COM , data=Plots_comunas_subset )
-anova(fit_log_Biomass_change)          #NOTHING SIGNIFICANT
+# Mortality proportion
+#getting list of plots with trees present in 2002
+Plots_comunas_subset_withTrees <- Plots_comunas_subset[Plots_comunas_subset$num_trees_2002 > 0,]
+fit.mort  = aov(removed_trees.2014/num_trees_2002 ~ NOM_COM, data=Plots_comunas_subset_withTrees)
+anova(fit.mort)          #NOTHING SIGNIFICANT
+
+
 ```
 
 
@@ -124,6 +226,7 @@ anova(fit_log_BA_change)          #NOTHING SIGNIFICANT
 fitBiomass_change <- aov(Biomass.02.14 ~ Land.Use.Description_grouped , data=Plots)
 anova(fitBiomass_change)          #NOTHING SIGNIFICANT
 
+
 # 2012-2014 Change in log(Biomass)
 fit_log_Biomass_change <- aov(log(Biomass.02.14 + 1) ~ Land.Use.Description_grouped , data=Plots)
 anova(fit_log_Biomass_change)          #NOTHING SIGNIFICANT
@@ -137,28 +240,80 @@ fitBA.2002  = aov(BA2002 ~ Land.Use.Description_grouped , data=Plots)
 anova(fitBA.2002)          #NOTHING SIGNIFICANT
 
 # 2014 Basal Area
-fitBA.2014  = aov(BA2014 ~ Land.Use.Description_grouped , data=Plots)
+fitBA.2014  = aov(25*BA2014 ~ Land.Use.Description_grouped , data=Plots)
 anova(fitBA.2014)          #NOTHING SIGNIFICANT
 
 # 2002 Biomass
 fitBiomass.2002  = aov(Biomass.2002 ~ Land.Use.Description_grouped , data=Plots)
 anova(fitBiomass.2002)          #NOTHING SIGNIFICANT
 
-# 2014 Basal Area
-fitBiomass.2014  = aov(Biomass.2014 ~ Land.Use.Description_grouped , data=Plots)
+# 2014 Biomass
+fitBiomass.2014  = aov(25*Biomass.2014 ~ Land.Use.Description_grouped , data=Plots)
 anova(fitBiomass.2014)          #NOTHING SIGNIFICANT
+
+# 2014 log Biomass
+fitLogBiomass.2014  = aov(logBiomass.2014 ~ Land.Use.Description_grouped , data=Plots, na.action = na.omit)
+anova(fitLogBiomass.2014)          
+plot(cld(glht(fitLogBiomass.2014,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
+     main = 'Change in Biomass per Land Use', las = 3)
+
+# Tree Cover percentage
+fit.TreeCover <- aov(TreeCover.02.14 ~ Land.Use.Description_grouped , data=Plots)
+anova(fit.TreeCover)          #NOTHING SIGNIFICANT
 
 # Total number of species
 fitSpecies  <- aov(num_species ~ Land.Use.Description_grouped , data=Plots)
 anova(fitSpecies)          #SOMETHING SIGNIFICANT!!!!!!!!!!
+plot(cld(glht(fitSpecies,linfct=mcp(Land.Use.Description_grouped='Tukey'))),
+     main = 'Change in Biomass per Comuna', las = 3)
 
-# Mortality
-fit.mort  = aov(removed_trees.2014 ~ Land.Use.Description_grouped , data=Plots)
+# Mortality proportion
+fit.mort  = aov(removed_trees.2014/num_trees_2002 ~ Land.Use.Description_grouped , data=Plots)
 anova(fit.mort)          #NOTHING SIGNIFICANT
 
 # Resprouting
-fit.resp  = aov(ingrowth_trees.2014 ~ Land.Use.Description_grouped , data=Plots)
+fit.resp  = aov(ingrowth_trees.2014/num_trees_2014~ Land.Use.Description_grouped , data=Plots)
 anova(fit.resp)          #NOTHING SIGNIFICANT
+```
+
+
+```{r Summary variables per LanUse, message=FALSE, echo=FALSE, warning=FALSE}
+#Code to get summary means for  BIomass, Basal Area and their change per Land USe. This is considering all plots. It is not the analysis of tree growth found in paper.
+#The paper table is found in Santiago_Tree_Growth.rmd
+#Dataframe preparation
+type_table = data.frame(matrix(NA, nrow = 5))
+rownames(type_table) = c('A', 'C/I', 'G', 'R', 'T' )
+
+se <- function(x) sqrt(var(x)/length(x))
+
+#These values are already estimated by hectare in preparedataframes file
+type_table ['n'] = as.vector(table (Plots$Land.Use.Description_grouped))
+
+type_table <- type_table[-c(1)] #Deleting first column with no data
+
+type_table ['Biomass.2014.Mean'] = round(aggregate(Plots$Biomass.2014, by=list(Plots$Land.Use.Description_grouped), FUN= mean)$x, digits = 2)
+type_table ['Biomass.2014.SE'] = round(aggregate(Plots$Biomass.2014, by=list(Plots$Land.Use.Description_grouped), FUN=se)$x, digits = 2)
+
+type_table ['D.Bio.Mean'] = round(aggregate(Plots$Biomass.02.14/12, by=list(Plots$Land.Use.Description_grouped), FUN=mean)$x, digits = 2)
+type_table ['D.Bio.SE'] = round(aggregate(Plots$Biomass.02.14/12, by=list(Plots$Land.Use.Description_grouped), FUN=se)$x, digits = 2)
+
+type_table ['BA.2014.Mean'] = round(aggregate(Plots$BA2014, by=list(Plots$Land.Use.Description_grouped), FUN= mean)$x, digits = 2)
+type_table ['BA.2014.SE'] = round(aggregate(Plots$BA2014, by=list(Plots$Land.Use.Description_grouped), FUN=se)$x, digits = 2)
+
+type_table ['D.BA.Mean'] = round(aggregate(Plots$BA.02.14/12, by=list(Plots$Land.Use.Description_grouped), FUN=mean)$x, digits = 2)
+type_table ['D.BA.SE'] = round(aggregate(Plots$BA.02.14/12, by=list(Plots$Land.Use.Description_grouped), FUN=se)$x, digits = 2)
+
+total <- round(c(sum(table (Plots$Land.Use.Description_grouped)),
+                           mean(Plots$Biomass.2014), se(Plots$Biomass.2014),
+                           mean(Plots$Biomass.02.14/12), se(Plots$Biomass.02.14/12),
+                           mean(Plots$BA2014), se(Plots$BA2014),
+                           mean(Plots$BA.02.14/12), se(Plots$BA.02.14/12)), 
+                         digits = 2) 
+
+type_table[6,] <- total #adding row to end of table
+
+
+type_table 
 ```
 
 
@@ -186,7 +341,7 @@ colnames(corr_table) = c('BA2002',
 for (response in colnames(corr_table)){
   #png(paste(factor, '.png'))
   for (factor in rownames(corr_table)){
-    corr_table[factor,response] = round(cor(Plots[factor], Plots[response], use = 'complete.obs')[1], 
+    corr_table[factor,response] = round(cor(Plots[factor], Plots[response], use = 'complete.obs', method = 'spearman')[1], 
                                          digits = 3)
     }
 } 
